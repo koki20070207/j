@@ -1,0 +1,34 @@
+2026-08-30 16:34:48 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 16:38:12 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 16:38:40 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 16:42:43 [INFO] __main__: タスクスケジューラに登録します: schtasks /create /tn JarvisCore /tr "C:\Users\kouki\AppData\Local\Python\pythoncore-3.14-64\pythonw.exe" "C:\Users\kouki\Downloads\j\jarvis_core.py" /sc onlogon /rl limited /f
+2026-08-30 16:42:43 [ERROR] __main__: 登録に失敗しました: エラー: アクセスが拒否されました。
+2026-08-30 16:59:42 [INFO] __main__: タスクスケジューラに登録します: schtasks /create /tn JarvisCore /tr "C:\Users\kouki\AppData\Local\Python\pythoncore-3.14-64\pythonw.exe" "C:\Users\kouki\Downloads\j\jarvis_core.py" /sc onlogon /rl limited /f
+2026-08-30 16:59:42 [ERROR] __main__: 登録に失敗しました: エラー: アクセスが拒否されました。
+2026-08-30 17:01:21 [INFO] __main__: タスクスケジューラに登録します: schtasks /create /tn JarvisCore /tr "C:\Users\kouki\AppData\Local\Python\pythoncore-3.14-64\pythonw.exe" "C:\Users\kouki\Downloads\j\jarvis_core.py" /sc onlogon /rl limited /f
+2026-08-30 17:01:21 [INFO] __main__: 登録に成功しました。次回ログイン時からJarvis Coreが自動起動します。
+2026-08-30 17:01:43 [INFO] __main__: タスクスケジューラに登録します: schtasks /create /tn JarvisCore /tr "C:\Users\kouki\AppData\Local\Python\pythoncore-3.14-64\pythonw.exe" "C:\Users\kouki\Downloads\j\jarvis_core.py" /sc onlogon /rl limited /f
+2026-08-30 17:01:43 [ERROR] __main__: 登録に失敗しました: エラー: アクセスが拒否されました。
+2026-08-30 17:12:31 [INFO] __main__: タスクスケジューラに登録します: schtasks /create /tn JarvisCore /tr C:\Users\kouki\Downloads\j\_jarvis_core_launcher.bat /sc onlogon /rl limited /f
+2026-08-30 17:12:31 [INFO] __main__: 登録に成功しました。次回ログイン時からJarvis Coreが自動起動します。
+2026-08-30 17:15:46 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 17:18:14 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 17:23:37 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 21:42:55 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 21:43:47 [INFO] tools: メモを追加しました（memo_1）: 2026年08月31日(月) 15:00 ランチ
+2026-08-30 21:54:22 [INFO] llm_client: 完全一致キャッシュにヒットしたため、API呼び出しをスキップしました。
+2026-08-30 21:54:23 [INFO] memory_store: 同一内容の記憶がすでに存在するため、保存をスキップしました。
+2026-08-30 21:56:15 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 21:57:27 [INFO] tools: メモを追加しました（memo_2）: 卵を買う
+2026-08-30 21:57:27 [INFO] llm_client: ツール呼び出し: add_memo({'text': '卵を買う'}) → メモを保存しました（ID: memo_2）: 卵を買う
+2026-08-30 22:29:13 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-30 22:30:27 [INFO] llm_client: 完全一致キャッシュにヒットしたため、API呼び出しをスキップしました。
+2026-08-30 22:31:11 [INFO] tools: メモを追加しました（memo_3）: 牛乳を買う
+2026-08-30 22:31:11 [INFO] llm_client: ツール呼び出し: add_memo({'text': '牛乳を買う'}) → メモを保存しました（ID: memo_3）: 牛乳を買う
+2026-08-31 11:24:59 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-31 14:00:21 [INFO] llm_client: 完全一致キャッシュにヒットしたため、API呼び出しをスキップしました。
+2026-08-31 14:01:18 [INFO] llm_client: 完全一致キャッシュにヒットしたため、API呼び出しをスキップしました。
+2026-08-31 14:09:09 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-31 23:19:05 [INFO] db: SQLiteデータベースを初期化しました: jarvis.db
+2026-08-31 23:19:52 [INFO] llm_client: 完全一致キャッシュにヒットしたため、API呼び出しをスキップしました。
+2026-08-31 23:20:06 [INFO] llm_client: 完全一致キャッシュにヒットしたため、API呼び出しをスキップしました。

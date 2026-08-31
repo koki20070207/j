@@ -1,0 +1,26 @@
+# Jarvis プロジェクト依存パッケージ（Phase 1〜Step 3 時点）
+#
+# 元のPDF AIチャットデモから変わった点:
+#   - google-generativeai を削除し、google-genai に置き換え（非推奨SDKからの移行）
+#   - fastapi / uvicorn を追加（Jarvis CoreのローカルAPI用）
+#
+# バージョンを明記しているのは、このプロジェクトで実際に動作確認したもの。
+# 「>=」ではなく「==」にしているのは、依存関係がまだ固まりきっていない
+# 開発初期段階のため、環境差異による予期せぬ不具合を避ける目的。
+# 慣れてきたら==を>=に緩めても構わない。
+
+streamlit
+python-dotenv
+chromadb
+sentence-transformers
+pydantic
+ddgs
+pymupdf
+pillow
+
+# Phase 1（Gemini SDK移行・関数呼び出し基盤）
+google-genai==2.19.0
+
+# Step 3（Jarvis CoreのローカルAPI）
+fastapi==0.141.1
+uvicorn==0.52.4

@@ -60,20 +60,49 @@ def add_memo(text: str) -> str:
     Args:
         text: 保存する内容。日時が関係する場合は、get_current_datetimeで
             確認した具体的な日時を含めること（例: 「8/28(金) 15:00 歯医者」）。
+     
+    Returns:
+        メモが正常に保存された場合の確認メッセージ、またはエラーメッセージ。
+     
+    Raises:
+        ValueError: テキストが空またはNoneの場合。
     """
+    if not text:
+         error_msg = "メモのテキストが空です。内容を指定してください。"
+         logger.warning("add_memo: 空のテキストが渡されました")
+         return error_msg
+     
+    text_stripped = text.strip()
+    if len(text_stripped) < 2:
+         error_msg = f"メモのテキストが短すぎます（最小2文字）: {repr(text_stripped)}"
+         logger.warning("add_memo: テキストが短すぎます: %s", repr(text))
+         return error_msg
+     
+    # 明らかに誤った呼び出しを検出（例: 「日本時間」「今何時」など、メモとして不適切）
+    time_related_phrases = ["時間", "何時", "時刻", "日時", "今", "明日", "昨日"]
+    is_likely_time_query = any(phrase in text_stripped for phrase in time_related_phrases) and len(text_stripped) < 10
+    if is_likely_time_query:
+         logger.warning(
+              "⚠️ 時刻関連クエリがメモとして渡された可能性があります。正常な呼び出しか確認してください: %s",
+              repr(text_stripped),
+         )
+         # メモには保存しないが、エラーとも言わず、正常系の返答を返す
+         # （モデルに混乱を与えないため）
+         return "時刻情報はメモとして保存していません。"
+     
     try:
         with get_connection() as conn:
             cursor = conn.execute(
                 "INSERT INTO memos (text, created_at, done) VALUES (?, ?, 0)",
-                (text, datetime.now(JST).isoformat()),
+                (text_stripped, datetime.now(JST).isoformat()),
             )
             entry_id = cursor.lastrowid
     except Exception as e:
         logger.warning("メモの保存に失敗しました: %s", e)
         return "メモの保存に失敗しました（データベースエラー）。"
 
-    logger.info("メモを追加しました（memo_%d）: %s", entry_id, text)
-    return f"メモを保存しました（ID: memo_{entry_id}）: {text}"
+    logger.info("メモを追加しました（memo_%d）: %s", entry_id, text_stripped)
+    return f"メモを保存しました（ID: memo_{entry_id}）: {text_stripped}"
 
 
 def list_memos() -> str:

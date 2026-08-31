@@ -314,7 +314,20 @@ def _execute_tool_calls(function_calls: List[Any]) -> List[Any]:
             logger.warning(result_text)
         else:
             try:
-                result_text = fn(**(fc.args or {}))
+                # add_memo の呼び出しは特に注意して監視する
+                # （システムプロンプトの意図と異なる誤った呼び出しが発生している実績がある）
+                if fc.name == "add_memo":
+                     memo_text = (fc.args or {}).get("text", "")
+                     if not memo_text or len(memo_text.strip()) < 2:
+                         logger.warning(
+                              "⚠️ 異常な add_memo 呼び出しを検出: 空またはテキストが短すぎます (%s)",
+                              repr(memo_text),
+                         )
+                         result_text = "エラー: メモのテキストが空または短すぎます"
+                     else:
+                         result_text = fn(**(fc.args or {}))
+                else:
+                     result_text = fn(**(fc.args or {}))
             except Exception as e:
                 result_text = f"エラー: ツール実行に失敗しました（{e}）"
                 logger.warning("ツール実行エラー: %s(%s): %s", fc.name, fc.args, e)

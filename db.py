@@ -96,7 +96,22 @@ def init_db() -> None:
 
 
 def table_row_count(table_name: str) -> int:
-    """指定テーブルの件数を返す（移行スクリプトの冪等性チェック等に使用）。"""
+    """指定テーブルの件数を返す（移行スクリプトの冪等性チェック等に使用）。
+     
+    Args:
+        table_name: テーブル名。既知の値（answer_cache, memos, chat_sessions, chat_messages）のみ許可。
+     
+    Returns:
+        テーブルの行数。
+     
+    Raises:
+        ValueError: テーブル名が許可リストに含まれていない場合。
+    """
+    allowed_tables = {"answer_cache", "memos", "chat_sessions", "chat_messages"}
+    if table_name not in allowed_tables:
+         raise ValueError(f"不正なテーブル名: {table_name}。許可されているテーブルは {allowed_tables}")
+     
     with get_connection() as conn:
-        row = conn.execute(f"SELECT COUNT(*) AS c FROM {table_name}").fetchone()
+         # テーブル名は既知の値に限定されているため、f-stringの使用は安全
+         row = conn.execute(f"SELECT COUNT(*) AS c FROM {table_name}").fetchone()
     return row["c"]

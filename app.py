@@ -18,12 +18,11 @@ import base64
 import json
 import os
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 
 import chromadb
 import streamlit as st
-from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 
 from config import (
@@ -42,6 +41,7 @@ from config import (
 )
 from db import init_db
 from embeddings import embed_query
+from env_validation import validate_environment
 from guardrails import check_input_safety
 from llm_client import generate_answer_with_tag, load_prompt
 from logging_setup import get_logger
@@ -73,13 +73,7 @@ logger = get_logger(__name__)
 @st.cache_resource(show_spinner="モデルとデータベースを初期化しています...")
 def init_system():
     """アプリ起動時に一度だけ実行される初期化処理。"""
-    load_dotenv()
-    # google-genai の genai.Client() は GEMINI_API_KEY を自動で読み込むため、
-    # ここでは「未設定なら早期にエラーで止める」ためだけにチェックしている
-    # （実際のクライアント生成は llm_client.get_gemini_client() 側で遅延initされる）。
-    if not os.getenv("GEMINI_API_KEY"):
-        st.error("環境変数 GEMINI_API_KEY が設定されていません。.env ファイルを確認してください。")
-        st.stop()
+    validate_environment()  # 必須環境変数をチェック（不足していれば早期にエラー終了）
 
     init_db()  # answer_cache / memos / chat_sessions用のSQLiteテーブルを用意（Step 2）
 

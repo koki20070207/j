@@ -192,6 +192,19 @@ def _gemini_generate_json(contents: Any) -> Tuple[Optional[Any], Optional[str], 
 # 完全一致キャッシュ（同じ質問文に対してAPIを叩かない）
 # ------------------------------------------------------------------
 def _normalize_cache_key(prompt: str) -> str:
+    """キャッシュキーを正規化（前後の空白を除去）。
+     
+    Args:
+        prompt: 正規化対象のプロンプト文字列。
+     
+    Returns:
+        正規化されたキャッシュキー。
+     
+    Raises:
+        ValueError: プロンプトが空またはNoneの場合。
+    """
+    if not prompt:
+         raise ValueError("キャッシュキーとなるプロンプトは空にできません")
     return prompt.strip()
 
 
@@ -200,7 +213,20 @@ def get_cached_answer(cache_key: str) -> Optional[Tuple[str, str]]:
 
     あくまで「一字一句同じ質問（＋検索条件）」のときだけヒットする単純なキャッシュ。
     【Step 2で変更】answer_cache.json（JSON全体を毎回読み書き）からSQLiteへ移行。
+     
+    Args:
+        cache_key: 検索対象のキャッシュキー。
+     
+    Returns:
+        (answer, tag) のタプル、またはキャッシュがない場合はNone。
+     
+    Raises:
+        ValueError: cache_keyが空またはNoneの場合。
     """
+    if not cache_key:
+         logger.warning("空のキャッシュキーでの検索要求")
+         return None
+     
     with get_connection() as conn:
         row = conn.execute(
             "SELECT answer, tag FROM answer_cache WHERE cache_key = ?",
@@ -212,11 +238,32 @@ def get_cached_answer(cache_key: str) -> Optional[Tuple[str, str]]:
 
 
 def set_cached_answer(cache_key: str, answer: str, tag: str) -> None:
+    """キャッシュに (cache_key, answer, tag) を保存する。既存キーは上書き。
+     
+    Args:
+        cache_key: キャッシュキー。
+        answer: 回答テキスト。
+        tag: 分類タグ。
+     
+    Raises:
+        ValueError: 必須パラメータが空またはNoneの場合。
+    """
+    if not cache_key:
+         raise ValueError("キャッシュキーは空にできません")
+    if not answer:
+         raise ValueError("回答テキストは空にできません")
+    if not tag:
+         raise ValueError("タグは空にできません")
+     
+    normalized_key = _normalize_cache_key(cache_key)
+    if not normalized_key:
+         raise ValueError("正規化後のキャッシュキーが空になりました")
+     
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO answer_cache (cache_key, answer, tag) VALUES (?, ?, ?) "
             "ON CONFLICT(cache_key) DO UPDATE SET answer = excluded.answer, tag = excluded.tag",
-            (_normalize_cache_key(cache_key), answer, tag),
+            (normalized_key, answer, tag),
         )
 
 

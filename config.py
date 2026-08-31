@@ -6,19 +6,28 @@
 """
 
 import os
+from pathlib import Path
+
+from path_utils import (
+     get_chroma_db_path,
+     get_core_log_file_path,
+     get_db_path,
+     get_log_file_path,
+     get_pid_file_path,
+     get_pdf_dir,
+     get_prompts_dir,
+)
 
 # ------------------------------------------------------------------
-# パス関連
+# パス関連（path_utils.py 経由で解決）
 # ------------------------------------------------------------------
-PDF_DIR = "pdf_images"
-CHROMA_DB_PATH = "./chroma_db"
-SESSION_FILE = "chat_sessions.json"
-ANSWER_CACHE_FILE = "answer_cache.json"  # 完全一致キャッシュの保存先
-DB_PATH = "jarvis.db"  # SQLite統合データベース（chat_sessions/answer_cache/memos）
-MEMO_FILE = "memos.json"  # tools.pyのadd_memo/list_memosが使うメモ・ToDoの保存先
-DB_PATH = "jarvis.db"  # SQLite統合DB（chat_sessions/answer_cache/memosを集約。Step 2で導入）
-LOG_FILE = "app.log"
-PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "prompts")
+PDF_DIR = str(get_pdf_dir())
+CHROMA_DB_PATH = str(get_chroma_db_path())
+DB_PATH = str(get_db_path())
+LOG_FILE = str(get_log_file_path())
+CORE_LOG_FILE = str(get_core_log_file_path())
+CORE_PID_FILE = str(get_pid_file_path())
+PROMPTS_DIR = str(get_prompts_dir())
 
 # ------------------------------------------------------------------
 # モデル関連
@@ -103,8 +112,6 @@ MEMORY_CONTEXT_MAX_CHARS = 800  # 1件あたりの保存文字数の上限（ノ
 # ------------------------------------------------------------------
 # Jarvis Core（常駐プロセス）
 # ------------------------------------------------------------------
-CORE_LOG_FILE = "jarvis_core.log"     # Streamlit側のapp.logとは別ファイルに分離
-CORE_PID_FILE = "jarvis_core.pid"     # 二重起動防止用
 CORE_HEARTBEAT_INTERVAL_SEC = 60      # 生存確認ログの間隔（Step 4でスケジューラのtickに置き換え予定）
 CORE_TASK_NAME = "JarvisCore"         # Windowsタスクスケジューラ上のタスク名
 

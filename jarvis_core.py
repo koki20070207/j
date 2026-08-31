@@ -31,10 +31,10 @@ import sys
 import threading
 import time
 
-from config import CORE_API_HOST, CORE_API_PORT, CORE_HEARTBEAT_INTERVAL_SEC, CORE_PID_FILE
+from config import CORE_API_HOST, CORE_API_PORT, CORE_HEARTBEAT_INTERVAL_SEC, CORE_LOG_FILE, CORE_PID_FILE
 from db import init_db
+from env_validation import validate_environment
 from logging_setup import get_logger
-from config import CORE_LOG_FILE
 
 # 起動方法（タスクスケジューラ／手動ダブルクリック等）によらず、常に
 # このファイルがあるディレクトリを基準に相対パス（memos.json等）を解決する。
@@ -51,7 +51,14 @@ _shutdown_requested = False
 # 二重起動防止
 # ------------------------------------------------------------------
 def _pid_is_running(pid: int) -> bool:
-    """指定PIDのプロセスが現在も生きているかを確認する（Windows/Unix両対応）。"""
+    """指定PIDのプロセスが現在も生きているかを確認する（Windows/Unix両対応）。
+     
+    Args:
+        pid: チェック対象のプロセスID。
+     
+    Returns:
+        プロセスが実行中の場合True。確認に失敗した場合も安全側（True）を返す。
+    """
     if os.name == "nt":
         # Windowsにはos.kill(pid, 0)の生存確認相当がないため、tasklistで確認する
         import subprocess
@@ -60,16 +67,29 @@ def _pid_is_running(pid: int) -> bool:
                 ["tasklist", "/FI", f"PID eq {pid}"],
                 capture_output=True, text=True, timeout=5,
             )
-            return str(pid) in result.stdout
-        except Exception:
-            # 確認自体に失敗した場合は「わからない」ではなく安全側（起動を止める）に倒す
+            is_running = str(pid) in result.stdout
+            logger.debug("Windows tasklist確認完了: PID %d は%s", pid, "実行中" if is_running else "停止中")
+            return is_running
+        except subprocess.TimeoutExpired:
+            logger.warning("Windows tasklist確認がタイムアウトしました（PID: %d）。安全側に倒して起動を止めます。", pid)
+            return True
+        except FileNotFoundError:
+            logger.warning("tasklist コマンドが見つかりません。プロセス存在チェックをスキップします。")
+            return False
+        except Exception as e:
+            logger.warning("プロセス確認中にエラーが発生しました（PID: %d）: %s。安全側に倒して起動を止めます。", pid, e)
             return True
     else:
         try:
             os.kill(pid, 0)
+            logger.debug("Unix シグナルチェック完了: PID %d は実行中", pid)
             return True
-        except OSError:
+        except ProcessLookupError:
+            logger.debug("PID %d は停止中です", pid)
             return False
+        except OSError as e:
+            logger.warning("プロセス確認中にエラーが発生しました（PID: %d）: %s。安全側に倒して起動を止めます。", pid, e)
+            return True
 
 
 def _acquire_single_instance_lock() -> None:
@@ -151,6 +171,7 @@ def run_forever() -> None:
     logger.info("Jarvis Core を起動します（PID: %d）", os.getpid())
     logger.info("=" * 60)
 
+    validate_environment()  # 必須環境変数をチェック
     _acquire_single_instance_lock()
     _register_signal_handlers()
     init_db()  # answer_cache / memos / chat_sessions用のSQLiteテーブルを用意（UI側と共有）

@@ -114,4 +114,4 @@ def table_row_count(table_name: str) -> int:
     with get_connection() as conn:
          # テーブル名は既知の値に限定されているため、f-stringの使用は安全
          row = conn.execute(f"SELECT COUNT(*) AS c FROM {table_name}").fetchone()
-    return row["c"]
+    return int(row["c"]) if row is not None else 0

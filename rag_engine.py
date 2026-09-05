@@ -142,6 +142,7 @@ def _extract_one_batch(batch: List[Tuple[int, Image.Image]]) -> Dict[int, Option
         logger.warning("ページ画像のバッチ解析に失敗したため、該当ページは通常のテキスト抽出にフォールバックします: %s", error)
         return {p: None for p in page_nums}
 
+    assert texts is not None, "texts should not be None if error is None"
     return {p: (t or None) for p, t in zip(page_nums, texts)}
 
 
@@ -464,7 +465,7 @@ def generate_highlighted_images(hit_pages: List[Dict[str, Any]]) -> List[Dict[st
     ヒットは複数の異なる文書にまたがる可能性があるため、source_hashごとに
     正しいPDFファイルを開いて処理する。
     """
-    generated_images = []
+    generated_images: List[Dict[str, Any]] = []
     if not hit_pages:
         return generated_images
 

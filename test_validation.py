@@ -28,6 +28,23 @@ from tools import (
 )
 
 
+@pytest.fixture(autouse=True)
+def clean_memos() -> None:
+    """Keep validation tests independent of the developer's local database."""
+    init_db()
+    with get_connection() as connection:
+        connection.execute("DELETE FROM memos")
+
+
+def latest_memo_id() -> int:
+    with get_connection() as connection:
+        row = connection.execute(
+            "SELECT id FROM memos ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    assert row is not None
+    return int(row["id"])
+
+
 # ===== テキスト入力バリデーション =====
 class TestTextValidation:
     """テキスト入力の共通バリデーション機能"""
@@ -272,7 +289,7 @@ class TestMarkMemoDone:
     def test_mark_memo_done_valid(self):
         """メモ完了マーク：正常なメモID"""
         add_memo("買い物")
-        result = mark_memo_done(1)
+        result = mark_memo_done(latest_memo_id())
         assert "完了状態" in result or "しました" in result
     
     def test_mark_memo_done_invalid_id(self):
@@ -315,7 +332,7 @@ class TestIntegration:
         assert "歯医者" in result
         
         # 4. メモ完了マーク
-        result = mark_memo_done(1)
+        result = mark_memo_done(latest_memo_id())
         assert "完了" in result or "しました" in result
         
         # 5. 一覧で完了状態を確認

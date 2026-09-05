@@ -174,6 +174,7 @@ def _gemini_generate_json(contents: Any) -> Tuple[Optional[Any], Optional[str], 
     # candidatesが空、finish_reasonがSAFETY/RECITATION等）がある。ここを
     # AttributeError/TypeError しか見ていないと ValueError が素通りしてクラッシュするため、
     # 「テキストが取れない」ことそのものをエラーとして扱う。
+    assert response is not None, "response should not be None if error is None"
     try:
         raw_text = response.text
     except (ValueError, AttributeError) as e:
@@ -378,6 +379,7 @@ def generate_answer_with_tag(
         if error:
             return "（エラーによりAIの応答を取得できませんでした。しばらく待ってから再度お試しください）", "未分類", False, tools_used
 
+        assert response is not None, "response should not be None if error is None"
         function_calls = response.function_calls
         if not function_calls:
             break
@@ -388,6 +390,7 @@ def generate_answer_with_tag(
     else:
         logger.warning("ツール呼び出しの反復回数が上限（%d回）に達しました。", TOOL_CALL_MAX_ITERATIONS)
 
+    assert response is not None, "response should not be None after loop"
     try:
         raw_text = response.text
     except (ValueError, AttributeError) as e:

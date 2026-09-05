@@ -24,3 +24,8 @@ google-genai==2.19.0
 # Step 3（Jarvis CoreのローカルAPI）
 fastapi==0.141.1
 uvicorn==0.52.4
+
+# Phase 4（Static Type Checking）
+mypy==1.11.0
+types-requests
+types-PyYAML

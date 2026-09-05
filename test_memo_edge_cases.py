@@ -18,11 +18,20 @@ from tools import (
 @pytest.fixture(autouse=True)
 def initialized_database() -> None:
     init_db()
+    with get_connection() as connection:
+        connection.execute("DELETE FROM memos")
 
 
 @pytest.mark.parametrize(
     "value",
-    ["", " ", "\t\n", "a", "a" * 5001, "これ" * 2500],
+    [
+        pytest.param("", id="empty"),
+        pytest.param(" ", id="space"),
+        pytest.param("\t\n", id="control-whitespace"),
+        pytest.param("a", id="short"),
+        pytest.param("a" * 5001, id="long-ascii"),
+        pytest.param("これ" * 5001, id="long-unicode"),
+    ],
 )
 def test_rejects_empty_short_and_oversized_memos(value: str) -> None:
     result = add_memo(value)
@@ -100,7 +109,11 @@ def test_mark_done_rejects_invalid_ids(memo_id: object) -> None:
 
 def test_mark_done_state_is_persisted() -> None:
     add_memo("state transition")
-    assert "完了状態" in mark_memo_done(1)
+    with get_connection() as connection:
+        memo_id = connection.execute(
+            "SELECT id FROM memos ORDER BY id DESC LIMIT 1"
+        ).fetchone()["id"]
+    assert "完了状態" in mark_memo_done(memo_id)
     assert "✅" in list_memos()
 
 

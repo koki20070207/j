@@ -28,6 +28,7 @@ import os
 import random
 import re
 import time
+import unicodedata
 from typing import Any, List, Optional, Tuple
 
 from google import genai
@@ -294,20 +295,31 @@ def is_time_only_query(query: Optional[str]) -> bool:
     """保存要求を含まない時刻質問を判定する。"""
     if not query:
         return False
-    normalized = "".join(query.lower().split())
+    def normalize(value: str) -> str:
+        value = unicodedata.normalize("NFKC", value).lower()
+        value = "".join(
+            chr(ord(char) - 0x60) if "\u30a1" <= char <= "\u30f6" else char
+            for char in value
+        )
+        return "".join(
+            char for char in value
+            if not char.isspace() and not unicodedata.category(char).startswith(("P", "S"))
+        )
+
+    normalized = normalize(query)
     time_phrases = (
         "いまなんじ",
         "今何時",
-        "いま何時",
         "現在時刻",
         "現在の時刻",
         "今の時間",
         "日本時間",
         "何時ですか",
+        "なんじ",
     )
-    has_time_phrase = any(phrase.lower() in normalized for phrase in time_phrases)
-    save_phrases = ("メモ", "覚えて", "登録", "保存", "リマインダー", "todo", "to do")
-    return has_time_phrase and not any(phrase.lower() in normalized for phrase in save_phrases)
+    has_time_phrase = any(normalize(phrase) in normalized for phrase in time_phrases)
+    save_phrases = ("メモ", "覚えて", "登録", "保存", "リマインダー", "todo")
+    return has_time_phrase and not any(normalize(phrase) in normalized for phrase in save_phrases)
 
 
 def _execute_tool_calls(

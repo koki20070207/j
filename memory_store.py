@@ -177,6 +177,24 @@ def delete_memory(collection: chromadb.Collection, parent_text: str) -> None:
     collection.delete(where={"parent_text": parent_text})
 
 
+def reset_chat_memory(collection: chromadb.Collection) -> int:
+    """チャット長期記憶を全削除し、削除したレコード数を返す。
+
+    コレクション自体は削除しない。呼び出し元が保持しているChromaDBの
+    コレクションハンドルをそのまま使い続けられるようにするためである。
+    """
+    records = collection.get()
+    ids = records.get("ids", [])
+    if not ids:
+        return 0
+
+    # ChromaDBのバッチ上限を超える場合に備えて分割する。
+    for start in range(0, len(ids), 5000):
+        collection.delete(ids=ids[start:start + 5000])
+    logger.info("チャット長期記憶をリセットしました: %d件", len(ids))
+    return len(ids)
+
+
 def get_grouped_memories(
     collection: chromadb.Collection,
     search_word: Optional[str] = None,

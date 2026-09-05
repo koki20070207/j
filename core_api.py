@@ -14,10 +14,13 @@ Jarvis Core が公開するローカルAPI。UI（Streamlit）はここを叩い
 
 import time
 
+import chromadb
 from fastapi import FastAPI
 
+from config import CHAT_COLLECTION_NAME, CHROMA_DB_PATH
 from db import get_connection
 from logging_setup import get_logger
+from memory_store import reset_chat_memory
 
 logger = get_logger(__name__)
 
@@ -49,3 +52,16 @@ def get_memos() -> dict:
             for r in rows
         ]
     }
+
+
+@app.post("/memory/reset")
+def reset_memory() -> dict:
+    """Webクライアントから長期記憶を全削除するためのローカルAPI。"""
+    client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+    try:
+        collection = client.get_collection(CHAT_COLLECTION_NAME)
+    except ValueError:
+        return {"deleted_count": 0, "message": "長期記憶コレクションは存在しません。"}
+
+    deleted_count = reset_chat_memory(collection)
+    return {"deleted_count": deleted_count, "message": "長期記憶をリセットしました。"}

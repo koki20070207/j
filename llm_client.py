@@ -204,7 +204,7 @@ def _normalize_cache_key(prompt: str) -> str:
     Raises:
         ValueError: プロンプトが空またはNoneの場合。
     """
-    if not prompt:
+    if not prompt or not prompt.strip():
          raise ValueError("キャッシュキーとなるプロンプトは空にできません")
     return prompt.strip()
 
@@ -423,12 +423,25 @@ def generate_answer_with_tag(
         if error:
             return "（エラーによりAIの応答を取得できませんでした。しばらく待ってから再度お試しください）", "未分類", False, tools_used
 
-        function_calls = response.function_calls
+        if response is None:
+            logger.error("Gemini APIが空のレスポンスを返しました。")
+            return "（AIから有効な応答を取得できませんでした）", "未分類", False, tools_used
+
+        try:
+            function_calls = response.function_calls or []
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.warning("Geminiのツール呼び出し情報を取得できませんでした: %s", e)
+            function_calls = []
         if not function_calls:
             break
 
         tools_used.extend(fc.name for fc in function_calls)
-        contents.append(response.candidates[0].content)
+        try:
+            assistant_content = response.candidates[0].content
+        except (AttributeError, IndexError, TypeError, ValueError) as e:
+            logger.warning("ツール呼び出し元の応答内容を取得できませんでした: %s", e)
+            return "（AIの応答を取得できませんでした）", "未分類", False, tools_used
+        contents.append(assistant_content)
         contents.append(
             types.Content(
                 role="user",

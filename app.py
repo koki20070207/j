@@ -497,7 +497,11 @@ def generate_rag_response(prompt, chat_history, model, child_collection, parent_
         question=prompt,
     )
     cache_key = _build_cache_key(prompt, use_web_search, search_scope_hashes)
-    answer, auto_tag, was_cached, tools_used = generate_answer_with_tag(full_prompt, cache_key=cache_key)
+    answer, auto_tag, was_cached, tools_used = generate_answer_with_tag(
+        full_prompt,
+        cache_key=cache_key,
+        user_query=prompt,
+    )
 
     return (
         answer, hit_pages, pdf_context, memory_context, mem_score, web_context,

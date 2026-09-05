@@ -28,6 +28,7 @@ from sentence_transformers import SentenceTransformer
 from config import (
     CHAT_COLLECTION_NAME,
     CHAT_HISTORY_MAX_TOKENS,
+    ANSWER_PROMPT_VERSION,
     CHROMA_DB_PATH,
     CHROMA_DISTANCE_METRIC,
     CORE_API_HOST,
@@ -43,7 +44,7 @@ from db import init_db
 from embeddings import embed_query
 from env_validation import validate_environment
 from guardrails import check_input_safety
-from llm_client import generate_answer_with_tag, load_prompt
+from llm_client import generate_answer_with_tag, is_time_only_query, load_prompt
 from logging_setup import get_logger
 from memory_store import (
     build_history_text,
@@ -55,6 +56,7 @@ from memory_store import (
     save_chat_sessions,
     search_memory_context,
 )
+from tools import get_current_datetime
 from rag_engine import (
     generate_highlighted_images,
     get_registered_documents,
@@ -454,6 +456,7 @@ def _build_cache_key(prompt: str, use_web_search: bool, search_scope_hashes) -> 
     変わりにくい単位でキーを作ることで、完全一致キャッシュを名前どおりに機能させる。
     """
     key_obj = {
+        "prompt_version": ANSWER_PROMPT_VERSION,
         "q": prompt.strip(),
         "web": bool(use_web_search),
         "scope": sorted(search_scope_hashes) if search_scope_hashes else None,
@@ -462,6 +465,23 @@ def _build_cache_key(prompt: str, use_web_search: bool, search_scope_hashes) -> 
 
 
 def generate_rag_response(prompt, chat_history, model, child_collection, parent_collection, chat_collection, threshold, use_web_search, search_scope_hashes):
+    # 時刻だけを尋ねる質問は検索・LLM・メモ保存を通さず、決定的に処理する。
+    # これにより、検索結果や会話履歴に含まれる買い物メモなどが
+    # add_memo の判断へ影響する経路自体をなくす。
+    if is_time_only_query(prompt):
+        return (
+            get_current_datetime(),
+            [],
+            "なし",
+            "なし",
+            999.0,
+            "なし",
+            "未分類",
+            False,
+            False,
+            ["get_current_datetime"],
+        )
+
     query_vector = embed_query(model, prompt)
 
     pdf_context, hit_pages = search_pdf_context(

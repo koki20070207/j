@@ -290,7 +290,7 @@ def _split_answer_and_tag(raw_text: str) -> Tuple[str, str]:
 # ------------------------------------------------------------------
 # 回答生成（本文＋分類タグ＋必要に応じてツール呼び出し）
 # ------------------------------------------------------------------
-def _is_time_only_query(query: Optional[str]) -> bool:
+def is_time_only_query(query: Optional[str]) -> bool:
     """保存要求を含まない時刻質問を判定する。"""
     if not query:
         return False
@@ -339,7 +339,7 @@ def _execute_tool_calls(
             try:
                 # add_memo の呼び出しは特に注意して監視する
                 # （システムプロンプトの意図と異なる誤った呼び出しが発生している実績がある）
-                if fc.name == "add_memo" and _is_time_only_query(user_query):
+                if fc.name == "add_memo" and is_time_only_query(user_query):
                     logger.warning(
                         "時刻質問からの不正なadd_memo呼び出しを拒否しました: query=%r args=%r",
                         user_query,

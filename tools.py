@@ -261,7 +261,7 @@ def mark_memo_done(memo_id: int) -> str:
        完了状態になった旨のメッセージ、またはエラーメッセージ。
     """
     # メモIDの妥当性チェック
-    if not isinstance(memo_id, int) or memo_id <= 0:
+    if not isinstance(memo_id, int) or memo_id <= 0 or memo_id > 2**63 - 1:
        return f"無効なメモIDです: {memo_id}。正の整数を指定してください。"
     
     try:

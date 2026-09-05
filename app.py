@@ -51,6 +51,7 @@ from memory_store import (
     get_grouped_memories,
     load_chat_sessions,
     register_chat_memory,
+    reset_chat_memory,
     save_chat_sessions,
     search_memory_context,
 )
@@ -253,6 +254,28 @@ def render_settings(model, child_collection, parent_collection):
 # UI: サイドバー — 記憶の管理
 # ------------------------------------------------------------------
 def render_memory_manager(chat_collection, model) -> None:
+    st.warning(
+        "長期記憶をリセットすると、過去の会話から保存された記憶がすべて削除されます。"
+        "チャット履歴やPDFデータは削除されません。"
+    )
+    reset_confirmed = st.checkbox(
+        "長期記憶をすべて削除することを確認しました",
+        key="reset_chat_memory_confirmed",
+    )
+    if st.button(
+        "🧹 長期記憶をリセット",
+        disabled=not reset_confirmed,
+        type="secondary",
+        use_container_width=True,
+    ):
+        deleted_count = reset_chat_memory(chat_collection)
+        st.session_state["show_undo"] = False
+        st.session_state["deleted_backup"] = None
+        st.session_state["reset_chat_memory_confirmed"] = False
+        st.success(f"長期記憶をリセットしました（{deleted_count}件削除）。")
+        time.sleep(1)
+        st.rerun()
+
     search_query = st.text_input("検索（キーワードを入力）", placeholder="例: Python, 料理")
     grouped_memories = get_grouped_memories(chat_collection, search_query, model)
 

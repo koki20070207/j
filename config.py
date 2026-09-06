@@ -36,6 +36,7 @@ EMBEDDING_MODEL_NAME = "intfloat/multilingual-e5-small"
 # 2026年8月時点ではGemini 3系（例: gemini-3.5-flash）も利用可能。
 # 関数呼び出しの精度を上げたい場合は切り替えを検討してください（要動作確認）。
 GEMINI_MODEL_NAME = "gemini-2.5-flash"
+ANSWER_PROMPT_VERSION = "2026-09-06-tool-policy-v3"
 
 # multilingual-e5 系モデルは "query: " / "passage: " のプレフィックスを付けて
 # 埋め込みを取ることが公式に推奨されている。付けないと検索精度が本来より落ちる。

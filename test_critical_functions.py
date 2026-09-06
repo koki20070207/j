@@ -52,8 +52,8 @@ def test_normalize_cache_key_empty_raises_error():
 def test_normalize_cache_key_whitespace_only():
     """キャッシュキーの正規化：空白のみの場合は空文字列を返す"""
     # Note: 実装は "   ".strip() で "" を返す
-    result = _normalize_cache_key("   ")
-    assert result == ""
+    with pytest.raises(ValueError):
+        _normalize_cache_key("   ")
 
 
 def test_normalize_cache_key_with_newlines():

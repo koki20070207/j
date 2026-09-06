@@ -28,6 +28,7 @@ import os
 import random
 import re
 import time
+import unicodedata
 from typing import Any, List, Optional, Tuple
 
 from google import genai
@@ -204,7 +205,7 @@ def _normalize_cache_key(prompt: str) -> str:
     Raises:
         ValueError: プロンプトが空またはNoneの場合。
     """
-    if not prompt:
+    if not prompt or not prompt.strip():
          raise ValueError("キャッシュキーとなるプロンプトは空にできません")
     return prompt.strip()
 
@@ -291,7 +292,41 @@ def _split_answer_and_tag(raw_text: str) -> Tuple[str, str]:
 # ------------------------------------------------------------------
 # 回答生成（本文＋分類タグ＋必要に応じてツール呼び出し）
 # ------------------------------------------------------------------
-def _execute_tool_calls(function_calls: List[Any]) -> List[Any]:
+def is_time_only_query(query: Optional[str]) -> bool:
+    """保存要求を含まない時刻質問を判定する。"""
+    if not query:
+        return False
+    def normalize(value: str) -> str:
+        value = unicodedata.normalize("NFKC", value).lower()
+        value = "".join(
+            chr(ord(char) - 0x60) if "\u30a1" <= char <= "\u30f6" else char
+            for char in value
+        )
+        return "".join(
+            char for char in value
+            if not char.isspace() and not unicodedata.category(char).startswith(("P", "S"))
+        )
+
+    normalized = normalize(query)
+    time_phrases = (
+        "いまなんじ",
+        "今何時",
+        "現在時刻",
+        "現在の時刻",
+        "今の時間",
+        "日本時間",
+        "何時ですか",
+        "なんじ",
+    )
+    has_time_phrase = any(normalize(phrase) in normalized for phrase in time_phrases)
+    save_phrases = ("メモ", "覚えて", "登録", "保存", "リマインダー", "todo")
+    return has_time_phrase and not any(normalize(phrase) in normalized for phrase in save_phrases)
+
+
+def _execute_tool_calls(
+    function_calls: List[Any],
+    user_query: Optional[str] = None,
+) -> List[Any]:
     """モデルが要求した関数呼び出しを実行し、Geminiに返すためのPartのリストを作る。
 
     自動関数呼び出し（automatic function calling）ではなく、あえて手動ループに
@@ -317,7 +352,14 @@ def _execute_tool_calls(function_calls: List[Any]) -> List[Any]:
             try:
                 # add_memo の呼び出しは特に注意して監視する
                 # （システムプロンプトの意図と異なる誤った呼び出しが発生している実績がある）
-                if fc.name == "add_memo":
+                if fc.name == "add_memo" and is_time_only_query(user_query):
+                    logger.warning(
+                        "時刻質問からの不正なadd_memo呼び出しを拒否しました: query=%r args=%r",
+                        user_query,
+                        fc.args,
+                    )
+                    result_text = "エラー: 時刻を尋ねるだけの質問ではメモを保存できません。"
+                elif fc.name == "add_memo":
                      memo_text = (fc.args or {}).get("text", "")
                      if not memo_text or len(memo_text.strip()) < 2:
                          logger.warning(
@@ -342,7 +384,10 @@ def _execute_tool_calls(function_calls: List[Any]) -> List[Any]:
 
 
 def generate_answer_with_tag(
-    full_prompt: str, cache_key: Optional[str] = None, use_cache: bool = True
+    full_prompt: str,
+    cache_key: Optional[str] = None,
+    use_cache: bool = True,
+    user_query: Optional[str] = None,
 ) -> Tuple[str, str, bool, List[str]]:
     """回答本文と自動分類タグを取得する。tools.AVAILABLE_TOOLSのツールを必要に応じて使う。
 
@@ -379,14 +424,31 @@ def generate_answer_with_tag(
         if error:
             return "（エラーによりAIの応答を取得できませんでした。しばらく待ってから再度お試しください）", "未分類", False, tools_used
 
-        assert response is not None, "response should not be None if error is None"
-        function_calls = response.function_calls
+        if response is None:
+            logger.error("Gemini APIが空のレスポンスを返しました。")
+            return "（AIから有効な応答を取得できませんでした）", "未分類", False, tools_used
+
+        try:
+            function_calls = response.function_calls or []
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.warning("Geminiのツール呼び出し情報を取得できませんでした: %s", e)
+            function_calls = []
         if not function_calls:
             break
 
         tools_used.extend(fc.name for fc in function_calls)
-        contents.append(response.candidates[0].content)
-        contents.append(types.Content(role="user", parts=_execute_tool_calls(function_calls)))
+        try:
+            assistant_content = response.candidates[0].content
+        except (AttributeError, IndexError, TypeError, ValueError) as e:
+            logger.warning("ツール呼び出し元の応答内容を取得できませんでした: %s", e)
+            return "（AIの応答を取得できませんでした）", "未分類", False, tools_used
+        contents.append(assistant_content)
+        contents.append(
+            types.Content(
+                role="user",
+                parts=_execute_tool_calls(function_calls, user_query=user_query),
+            )
+        )
     else:
         logger.warning("ツール呼び出しの反復回数が上限（%d回）に達しました。", TOOL_CALL_MAX_ITERATIONS)
 

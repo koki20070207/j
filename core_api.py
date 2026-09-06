@@ -22,9 +22,12 @@ from db import get_connection
 from logging_setup import get_logger
 from memory_store import reset_chat_memory
 from operation_store import (
+    claim_confirmation,
+    cancel_confirmation,
     create_confirmation,
     create_operation,
     finish_operation,
+    finish_confirmation,
     list_operations,
     resolve_confirmation,
 )
@@ -128,6 +131,47 @@ def resolve_confirmation_request(confirmation_id: str, approved: bool) -> dict:
     if not resolve_confirmation(confirmation_id, approved):
         raise HTTPException(status_code=409, detail="確認要求が存在しないか期限切れです。")
     return {"confirmation_id": confirmation_id, "status": "approved" if approved else "rejected"}
+
+
+@app.post("/confirmations/{confirmation_id}/execute")
+def execute_confirmed_operation(confirmation_id: str, max_attempts: int = 1) -> dict:
+    if not 1 <= max_attempts <= 3:
+        raise HTTPException(status_code=400, detail="再試行回数は1〜3回で指定してください。")
+    claimed = claim_confirmation(confirmation_id)
+    if claimed is None:
+        raise HTTPException(status_code=409, detail="承認済みで実行可能な確認要求がありません。")
+    operation, payload = claimed
+    operation_id = create_operation(operation, payload, "running")
+    from operation_dispatcher import OperationDispatchError, dispatch_operation
+
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = dispatch_operation(operation, payload)
+        except OperationDispatchError as error:
+            last_error = error
+            if attempt == max_attempts:
+                finish_operation(operation_id, "failed", error=str(error))
+                finish_confirmation(confirmation_id, False)
+                raise HTTPException(status_code=400, detail=str(error)) from error
+        else:
+            result["attempts"] = attempt
+            finish_operation(operation_id, "succeeded", result)
+            finish_confirmation(confirmation_id, True)
+            return {
+                "confirmation_id": confirmation_id,
+                "operation_id": operation_id,
+                "status": "succeeded",
+                "result": result,
+            }
+    raise HTTPException(status_code=400, detail=str(last_error))
+
+
+@app.post("/confirmations/{confirmation_id}/cancel")
+def cancel_confirmation_request(confirmation_id: str) -> dict:
+    if not cancel_confirmation(confirmation_id):
+        raise HTTPException(status_code=409, detail="キャンセル可能な確認要求がありません。")
+    return {"confirmation_id": confirmation_id, "status": "cancelled"}
 
 
 @app.post("/tasks")

@@ -3,6 +3,8 @@
 import config
 import db
 from operation_store import (
+    claim_confirmation,
+    cancel_confirmation,
     create_confirmation,
     create_operation,
     finish_operation,
@@ -25,6 +27,8 @@ def test_operation_lifecycle_and_confirmation(tmp_path, monkeypatch):
 
     confirmation_id = create_confirmation("test", {"value": "x"})
     assert resolve_confirmation(confirmation_id, True) is True
+    assert claim_confirmation(confirmation_id) == ("test", {"value": "x"})
+    assert claim_confirmation(confirmation_id) is None
     assert resolve_confirmation(confirmation_id, False) is False
 
 
@@ -38,3 +42,15 @@ def test_scheduler_returns_due_task_once(tmp_path, monkeypatch):
 
     assert len(list_due_tasks()) == 1
     assert list_due_tasks() == []
+
+
+def test_confirmation_can_be_cancelled_before_execution(tmp_path, monkeypatch):
+    database_path = str(tmp_path / "cancel.db")
+    monkeypatch.setattr(config, "DB_PATH", database_path)
+    monkeypatch.setattr(db, "DB_PATH", database_path)
+    db.init_db()
+
+    confirmation_id = create_confirmation("system_info", {})
+    assert cancel_confirmation(confirmation_id) is True
+    assert claim_confirmation(confirmation_id) is None
+    assert cancel_confirmation(confirmation_id) is False

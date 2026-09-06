@@ -3,7 +3,7 @@
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from db import get_connection
 
@@ -59,5 +59,46 @@ def resolve_confirmation(confirmation_id: str, approved: bool) -> bool:
             "UPDATE confirmations SET status = ?, resolved_at = datetime('now') "
             "WHERE confirmation_id = ? AND status = 'pending' AND expires_at > ?",
             (status, confirmation_id, datetime.now(timezone.utc).isoformat()),
+        )
+    return cursor.rowcount == 1
+
+
+def claim_confirmation(confirmation_id: str) -> Tuple[str, Dict[str, Any]] | None:
+    """承認済み要求を一度だけ実行中へ移し、操作内容を返す。"""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT operation, request_json FROM confirmations "
+            "WHERE confirmation_id = ? AND status = 'approved' AND expires_at > ?",
+            (confirmation_id, datetime.now(timezone.utc).isoformat()),
+        ).fetchone()
+        if row is None:
+            return None
+        cursor = conn.execute(
+            "UPDATE confirmations SET status = 'executing' "
+            "WHERE confirmation_id = ? AND status = 'approved'",
+            (confirmation_id,),
+        )
+        if cursor.rowcount != 1:
+            return None
+    return row["operation"], json.loads(row["request_json"])
+
+
+def finish_confirmation(confirmation_id: str, succeeded: bool) -> None:
+    status = "executed" if succeeded else "failed"
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE confirmations SET status = ?, resolved_at = COALESCE(resolved_at, datetime('now')) "
+            "WHERE confirmation_id = ? AND status = 'executing'",
+            (status, confirmation_id),
+        )
+
+
+def cancel_confirmation(confirmation_id: str) -> bool:
+    """未実行の確認要求をキャンセルし、実行対象から除外する。"""
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE confirmations SET status = 'cancelled', resolved_at = datetime('now') "
+            "WHERE confirmation_id = ? AND status IN ('pending', 'approved')",
+            (confirmation_id,),
         )
     return cursor.rowcount == 1

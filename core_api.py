@@ -131,9 +131,12 @@ def resolve_confirmation_request(confirmation_id: str, approved: bool) -> dict:
 
 
 @app.post("/tasks")
-def create_scheduled_task(name: str, operation: str, interval_sec: int) -> dict:
+def create_scheduled_task(name: str, operation: str, interval_sec: int, payload: dict | None = None) -> dict:
     try:
-        return {"task_id": schedule_task(name, operation, interval_sec), "status": "scheduled"}
+        return {
+            "task_id": schedule_task(name, operation, interval_sec, payload),
+            "status": "scheduled",
+        }
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
 

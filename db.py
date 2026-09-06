@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
     task_id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     operation TEXT NOT NULL,
+    request_json TEXT NOT NULL DEFAULT '{}',
     interval_sec INTEGER NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     next_run_at TEXT NOT NULL,
@@ -125,6 +126,11 @@ def init_db() -> None:
     """テーブルが存在しなければ作成する。起動のたびに呼んでよい冪等な処理。"""
     with get_connection() as conn:
         conn.executescript(_SCHEMA)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(scheduled_tasks)")}
+        if "request_json" not in columns:
+            conn.execute(
+                "ALTER TABLE scheduled_tasks ADD COLUMN request_json TEXT NOT NULL DEFAULT '{}'"
+            )
     logger.info("SQLiteデータベースを初期化しました: %s", DB_PATH)
 
 

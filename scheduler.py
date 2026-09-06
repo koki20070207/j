@@ -1,22 +1,32 @@
 """常駐Coreから呼び出す安全な軽量スケジューラ。"""
 
+import json
 import uuid
 from datetime import datetime, timezone
-from typing import List
+from typing import Any, Dict, List
 
 from db import get_connection
+from operation_dispatcher import SUPPORTED_OPERATIONS
 
 
-def schedule_task(name: str, operation: str, interval_sec: int) -> str:
+def schedule_task(
+    name: str,
+    operation: str,
+    interval_sec: int,
+    request: Dict[str, Any] | None = None,
+) -> str:
     if not name.strip() or interval_sec < 1:
         raise ValueError("タスク名と正の実行間隔が必要です。")
+    if operation not in SUPPORTED_OPERATIONS:
+        raise ValueError("許可されていない操作はスケジュールできません。")
     task_id = str(uuid.uuid4())
     next_run = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO scheduled_tasks (task_id, name, operation, interval_sec, next_run_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (task_id, name.strip(), operation, interval_sec, next_run),
+            "INSERT INTO scheduled_tasks "
+            "(task_id, name, operation, request_json, interval_sec, next_run_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (task_id, name.strip(), operation, json.dumps(request or {}, ensure_ascii=False), interval_sec, next_run),
         )
     return task_id
 
@@ -24,8 +34,9 @@ def schedule_task(name: str, operation: str, interval_sec: int) -> str:
 def list_due_tasks() -> List[dict]:
     now = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         rows = conn.execute(
-            "SELECT task_id, name, operation, interval_sec FROM scheduled_tasks "
+            "SELECT task_id, name, operation, request_json, interval_sec, next_run_at FROM scheduled_tasks "
             "WHERE enabled = 1 AND next_run_at <= ? ORDER BY next_run_at",
             (now,),
         ).fetchall()
@@ -35,7 +46,13 @@ def list_due_tasks() -> List[dict]:
                 timezone.utc,
             ).isoformat()
             conn.execute(
-                "UPDATE scheduled_tasks SET next_run_at = ? WHERE task_id = ?",
-                (next_run, row["task_id"]),
+                "UPDATE scheduled_tasks SET next_run_at = ? "
+                "WHERE task_id = ? AND next_run_at <= ?",
+                (next_run, row["task_id"], now),
             )
-    return [dict(row) for row in rows]
+    tasks = []
+    for row in rows:
+        item = dict(row)
+        item["request"] = json.loads(item.pop("request_json") or "{}")
+        tasks.append(item)
+    return tasks

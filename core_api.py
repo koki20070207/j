@@ -21,7 +21,15 @@ from config import CHAT_COLLECTION_NAME, CHROMA_DB_PATH
 from db import get_connection
 from logging_setup import get_logger
 from memory_store import reset_chat_memory
-from pc_tools import PCOperationError, list_directory, search_files
+from pc_tools import (
+    PCOperationError,
+    get_system_info,
+    launch_app,
+    list_directory,
+    open_url,
+    search_files,
+    show_notification,
+)
 from tools import reset_memos
 
 logger = get_logger(__name__)
@@ -56,6 +64,39 @@ def search_pc_files(pattern: str, root: str | None = None) -> dict:
         return {"pattern": pattern, "root": root, "files": search_files(pattern, root)}
     except PCOperationError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/pc/apps/{app_name}")
+def start_pc_app(app_name: str) -> dict:
+    """許可リストにあるアプリを起動する。"""
+    try:
+        return {"operation": "launch_app", "result": launch_app(app_name)}
+    except PCOperationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/pc/url")
+def open_pc_url(url: str) -> dict:
+    """安全なHTTP(S) URLを既定ブラウザで開く。"""
+    try:
+        return {"operation": "open_url", "result": open_url(url)}
+    except PCOperationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/pc/notification")
+def notify_pc(title: str, message: str) -> dict:
+    """ローカル通知を記録する。"""
+    try:
+        return {"operation": "notification", "result": show_notification(title, message)}
+    except PCOperationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/pc/system")
+def get_pc_system_info() -> dict:
+    """基本的なシステム情報を返す。"""
+    return {"operation": "system_info", "result": get_system_info()}
 
 
 @app.get("/memos")

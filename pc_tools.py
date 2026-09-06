@@ -1,18 +1,28 @@
 """安全なPC操作の基盤。
 
-最初の段階では読み取り専用のファイル一覧・検索だけを提供する。
-任意のコマンド実行や削除はこのモジュールに追加しない。
+操作は明示的な許可リストと入力検証を通し、任意コマンドは実行しない。
 """
 
+import platform
+import shutil
+import subprocess
+import urllib.parse
+import webbrowser
+from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
+from config import CORE_API_TIMEOUT_SEC
 from logging_setup import get_logger
 
 logger = get_logger(__name__)
 
 MAX_RESULTS = 100
 MAX_DEPTH = 6
+ALLOWED_APPS = {
+    "notepad": "notepad.exe",
+    "calculator": "calc.exe",
+}
 
 
 class PCOperationError(ValueError):
@@ -60,3 +70,56 @@ def search_files(pattern: str, root: Optional[str] = None) -> List[str]:
         if len(results) >= MAX_RESULTS:
             break
     return results
+
+
+def launch_app(app_name: str) -> Dict[str, str]:
+    """許可リストにあるWindowsアプリを起動する。"""
+    executable = ALLOWED_APPS.get(app_name.strip().lower())
+    if executable is None:
+        raise PCOperationError("許可されていないアプリです。")
+    executable_path = shutil.which(executable)
+    if executable_path is None:
+        raise PCOperationError("指定アプリがこのPCに見つかりません。")
+    try:
+        process = subprocess.Popen(
+            [executable_path],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            shell=False,
+        )
+    except OSError as error:
+        raise PCOperationError("アプリの起動に失敗しました。") from error
+    logger.info("許可リストのアプリを起動しました: %s (pid=%s)", app_name, process.pid)
+    return {"app": app_name.strip().lower(), "status": "started"}
+
+
+def open_url(url: str) -> Dict[str, str]:
+    """HTTP(S) URLを既定ブラウザで開く。"""
+    parsed = urllib.parse.urlparse(url.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise PCOperationError("httpまたはhttpsのURLだけ開けます。")
+    if not webbrowser.open(url.strip(), new=2):
+        raise PCOperationError("既定ブラウザでURLを開けませんでした。")
+    return {"url": url.strip(), "status": "opened"}
+
+
+def show_notification(title: str, message: str) -> Dict[str, str]:
+    """OS通知を要求する（現段階では安全な結果記録のみ）。"""
+    clean_title = title.strip()
+    clean_message = message.strip()
+    if not clean_title or not clean_message or len(clean_title) > 100 or len(clean_message) > 500:
+        raise PCOperationError("通知のタイトルと本文を適切に指定してください。")
+    logger.info("PC通知を要求しました: %s", clean_title)
+    return {"title": clean_title, "message": clean_message, "status": "queued"}
+
+
+def get_system_info() -> Dict[str, str]:
+    """外部通信なしで基本的なシステム情報を返す。"""
+    return {
+        "platform": platform.platform(),
+        "python": platform.python_version(),
+        "machine": platform.machine(),
+        "timestamp": datetime.now().astimezone().isoformat(),
+        "timeout_sec": str(CORE_API_TIMEOUT_SEC),
+    }

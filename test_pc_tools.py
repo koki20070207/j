@@ -3,7 +3,7 @@
 import pytest
 
 import pc_tools
-from pc_tools import PCOperationError, list_directory, search_files
+from pc_tools import PCOperationError, get_system_info, list_directory, open_url, search_files, show_notification
 
 
 def test_list_directory_is_read_only_and_structured(tmp_path, monkeypatch):
@@ -37,3 +37,27 @@ def test_search_files_rejects_empty_pattern(tmp_path, monkeypatch):
 
     with pytest.raises(PCOperationError):
         search_files("")
+
+
+def test_open_url_rejects_non_http_scheme():
+    with pytest.raises(PCOperationError):
+        open_url("file:///secret.txt")
+
+
+def test_open_url_uses_browser(monkeypatch):
+    monkeypatch.setattr(pc_tools.webbrowser, "open", lambda url, new: True)
+
+    assert open_url("https://example.com")["status"] == "opened"
+
+
+def test_show_notification_validates_and_returns_operation_result():
+    result = show_notification("Jarvis", "処理が完了しました")
+
+    assert result["status"] == "queued"
+
+
+def test_get_system_info_has_runtime_fields():
+    result = get_system_info()
+
+    assert result["platform"]
+    assert result["python"]

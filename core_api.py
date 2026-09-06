@@ -21,6 +21,7 @@ from config import CHAT_COLLECTION_NAME, CHROMA_DB_PATH
 from db import get_connection
 from logging_setup import get_logger
 from memory_store import reset_chat_memory
+from pc_tools import PCOperationError, list_directory, search_files
 from tools import reset_memos
 
 logger = get_logger(__name__)
@@ -37,6 +38,24 @@ def health() -> dict:
         "status": "ok",
         "uptime_sec": round(time.time() - _start_time, 1),
     }
+
+
+@app.get("/pc/files")
+def list_pc_files(root: str | None = None) -> dict:
+    """ユーザープロファイル配下のディレクトリを一覧する。"""
+    try:
+        return {"root": root, "entries": list_directory(root)}
+    except PCOperationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/pc/search")
+def search_pc_files(pattern: str, root: str | None = None) -> dict:
+    """ユーザープロファイル配下のファイル名を検索する。"""
+    try:
+        return {"pattern": pattern, "root": root, "files": search_files(pattern, root)}
+    except PCOperationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/memos")

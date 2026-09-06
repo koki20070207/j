@@ -21,6 +21,14 @@ from config import CHAT_COLLECTION_NAME, CHROMA_DB_PATH
 from db import get_connection
 from logging_setup import get_logger
 from memory_store import reset_chat_memory
+from operation_store import (
+    create_confirmation,
+    create_operation,
+    finish_operation,
+    list_operations,
+    resolve_confirmation,
+)
+from scheduler import schedule_task
 from pc_tools import (
     PCOperationError,
     get_system_info,
@@ -70,8 +78,13 @@ def search_pc_files(pattern: str, root: str | None = None) -> dict:
 def start_pc_app(app_name: str) -> dict:
     """許可リストにあるアプリを起動する。"""
     try:
-        return {"operation": "launch_app", "result": launch_app(app_name)}
+        operation_id = create_operation("launch_app", {"app_name": app_name}, "running")
+        result = launch_app(app_name)
+        finish_operation(operation_id, "succeeded", result)
+        return {"operation_id": operation_id, "operation": "launch_app", "result": result}
     except PCOperationError as error:
+        if "operation_id" in locals():
+            finish_operation(operation_id, "failed", error=str(error))
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
@@ -97,6 +110,32 @@ def notify_pc(title: str, message: str) -> dict:
 def get_pc_system_info() -> dict:
     """基本的なシステム情報を返す。"""
     return {"operation": "system_info", "result": get_system_info()}
+
+
+@app.get("/operations")
+def get_operations(limit: int = 50) -> dict:
+    return {"operations": list_operations(limit)}
+
+
+@app.post("/confirmations")
+def request_confirmation(operation: str, payload: dict) -> dict:
+    confirmation_id = create_confirmation(operation, payload)
+    return {"confirmation_id": confirmation_id, "status": "pending"}
+
+
+@app.post("/confirmations/{confirmation_id}")
+def resolve_confirmation_request(confirmation_id: str, approved: bool) -> dict:
+    if not resolve_confirmation(confirmation_id, approved):
+        raise HTTPException(status_code=409, detail="確認要求が存在しないか期限切れです。")
+    return {"confirmation_id": confirmation_id, "status": "approved" if approved else "rejected"}
+
+
+@app.post("/tasks")
+def create_scheduled_task(name: str, operation: str, interval_sec: int) -> dict:
+    try:
+        return {"task_id": schedule_task(name, operation, interval_sec), "status": "scheduled"}
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
 
 @app.get("/memos")

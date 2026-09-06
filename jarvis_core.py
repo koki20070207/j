@@ -35,6 +35,7 @@ from config import CORE_API_HOST, CORE_API_PORT, CORE_HEARTBEAT_INTERVAL_SEC, CO
 from db import init_db
 from env_validation import validate_environment
 from logging_setup import get_logger
+from scheduler import list_due_tasks
 
 # 起動方法（タスクスケジューラ／手動ダブルクリック等）によらず、常に
 # このファイルがあるディレクトリを基準に相対パス（memos.json等）を解決する。
@@ -200,8 +201,10 @@ def run_forever() -> None:
         tick = 0
         while not _shutdown_requested:
             tick += 1
-            # TODO(Step 4): ここでスケジューラのtick処理・自律タスクの進行チェックを行う
-            logger.info("生存確認（heartbeat #%d）。まだスケジューラは接続されていません。", tick)
+            due_tasks = list_due_tasks()
+            logger.info("生存確認（heartbeat #%d）。期限到来タスク: %d件", tick, len(due_tasks))
+            for task in due_tasks:
+                logger.info("自律タスクを検出しました（task_id=%s, operation=%s）。実行器接続待ちです。", task["task_id"], task["operation"])
 
             # sleepを短い間隔に分けて回すことで、シャットダウン要求から
             # 実際に停止するまでの遅延を短く保つ（最大1秒）

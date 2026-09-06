@@ -64,6 +64,39 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     content     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, seq);
+
+CREATE TABLE IF NOT EXISTS operations (
+    operation_id TEXT PRIMARY KEY,
+    operation TEXT NOT NULL,
+    status TEXT NOT NULL,
+    request_json TEXT NOT NULL DEFAULT '{}',
+    result_json TEXT NOT NULL DEFAULT '{}',
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    started_at TEXT,
+    finished_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_operations_created ON operations(created_at);
+
+CREATE TABLE IF NOT EXISTS scheduled_tasks (
+    task_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    interval_sec INTEGER NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    next_run_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS confirmations (
+    confirmation_id TEXT PRIMARY KEY,
+    operation TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    resolved_at TEXT
+);
 """
 
 

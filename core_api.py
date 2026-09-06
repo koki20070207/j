@@ -31,7 +31,7 @@ from operation_store import (
     list_operations,
     resolve_confirmation,
 )
-from scheduler import schedule_task
+from scheduler import delete_task, schedule_task, set_task_enabled
 from pc_tools import (
     PCOperationError,
     get_system_info,
@@ -183,6 +183,27 @@ def create_scheduled_task(name: str, operation: str, interval_sec: int, payload:
         }
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/tasks/{task_id}/stop")
+def stop_scheduled_task(task_id: str) -> dict:
+    if not set_task_enabled(task_id, False):
+        raise HTTPException(status_code=404, detail="タスクが見つかりません。")
+    return {"task_id": task_id, "status": "stopped"}
+
+
+@app.post("/tasks/{task_id}/resume")
+def resume_scheduled_task(task_id: str) -> dict:
+    if not set_task_enabled(task_id, True):
+        raise HTTPException(status_code=404, detail="タスクが見つかりません。")
+    return {"task_id": task_id, "status": "resumed"}
+
+
+@app.delete("/tasks/{task_id}")
+def remove_scheduled_task(task_id: str) -> dict:
+    if not delete_task(task_id):
+        raise HTTPException(status_code=404, detail="タスクが見つかりません。")
+    return {"task_id": task_id, "status": "deleted"}
 
 
 @app.get("/memos")

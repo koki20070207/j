@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import urllib.parse
 import webbrowser
+import shutil as _shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -142,3 +143,35 @@ def get_system_info() -> Dict[str, str]:
         "timestamp": datetime.now().astimezone().isoformat(),
         "timeout_sec": str(CORE_API_TIMEOUT_SEC),
     }
+
+
+def _safe_file(path: str) -> Path:
+    target = Path(path).expanduser().resolve()
+    base = Path.home().resolve()
+    try:
+        target.relative_to(base)
+    except ValueError as error:
+        raise PCOperationError("ユーザープロファイル配下のファイルだけ操作できます。") from error
+    return target
+
+
+def backup_file(path: str) -> Dict[str, str]:
+    target = _safe_file(path)
+    if not target.is_file():
+        raise PCOperationError("バックアップ対象のファイルが存在しません。")
+    backup = target.with_name(f"{target.name}.jarvis-backup")
+    shutil.copy2(target, backup)
+    return {"path": str(target), "backup": str(backup), "status": "backed_up"}
+
+
+def move_file(source: str, destination: str) -> Dict[str, str]:
+    src = _safe_file(source)
+    dst = _safe_file(destination)
+    if not src.is_file():
+        raise PCOperationError("移動元ファイルが存在しません。")
+    if dst.exists():
+        raise PCOperationError("移動先は既に存在します。")
+    backup = backup_file(str(src))
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    _shutil.move(str(src), str(dst))
+    return {"source": str(src), "destination": str(dst), "backup": backup["backup"], "status": "moved"}

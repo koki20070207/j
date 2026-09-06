@@ -10,6 +10,7 @@ from pc_tools import (
     open_url,
     search_files,
     show_notification,
+    move_file,
 )
 
 
@@ -18,7 +19,7 @@ class OperationDispatchError(ValueError):
 
 
 SUPPORTED_OPERATIONS = frozenset(
-    {"system_info", "list_files", "search_files", "launch_app", "open_url", "notification"}
+    {"system_info", "list_files", "search_files", "launch_app", "open_url", "notification", "move_file", "workflow"}
 )
 
 
@@ -46,6 +47,14 @@ def dispatch_operation(operation: str, request: Dict[str, Any] | None = None) ->
         if operation == "notification":
             _require_keys(payload, {"title", "message"})
             return show_notification(payload["title"], payload["message"])
+        if operation == "move_file":
+            _require_keys(payload, {"source", "destination"})
+            return move_file(payload["source"], payload["destination"])
+        if operation == "workflow":
+            _require_keys(payload, {"steps"})
+            from workflow import run_workflow
+
+            return run_workflow(payload["steps"])
     except (KeyError, TypeError, PCOperationError) as error:
         raise OperationDispatchError(str(error)) from error
 

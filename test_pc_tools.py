@@ -3,7 +3,7 @@
 import pytest
 
 import pc_tools
-from pc_tools import PCOperationError, get_system_info, list_directory, open_url, search_files, show_notification
+from pc_tools import PCOperationError, get_system_info, list_directory, move_file, open_url, search_files, show_notification
 
 
 def test_list_directory_is_read_only_and_structured(tmp_path, monkeypatch):
@@ -69,3 +69,16 @@ def test_get_system_info_has_runtime_fields():
 
     assert result["platform"]
     assert result["python"]
+
+
+def test_move_file_creates_backup_before_move(tmp_path, monkeypatch):
+    monkeypatch.setattr(pc_tools.Path, "home", staticmethod(lambda: tmp_path))
+    source = tmp_path / "source.txt"
+    destination = tmp_path / "archive" / "source.txt"
+    source.write_text("safe", encoding="utf-8")
+
+    result = move_file(str(source), str(destination))
+
+    assert result["status"] == "moved"
+    assert destination.read_text(encoding="utf-8") == "safe"
+    assert (tmp_path / "source.txt.jarvis-backup").read_text(encoding="utf-8") == "safe"

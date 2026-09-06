@@ -56,3 +56,18 @@ def list_due_tasks() -> List[dict]:
         item["request"] = json.loads(item.pop("request_json") or "{}")
         tasks.append(item)
     return tasks
+
+
+def set_task_enabled(task_id: str, enabled: bool) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "UPDATE scheduled_tasks SET enabled = ? WHERE task_id = ?",
+            (1 if enabled else 0, task_id),
+        )
+    return cursor.rowcount == 1
+
+
+def delete_task(task_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM scheduled_tasks WHERE task_id = ?", (task_id,))
+    return cursor.rowcount == 1

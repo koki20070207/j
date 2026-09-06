@@ -102,6 +102,9 @@ def load_prompt(template_name: str, **replacements: str) -> str:
     with open(path, "r", encoding="utf-8") as f:
         template = f.read()
 
+    if not template.strip():
+        raise ValueError(f"プロンプトファイルが空です: {path}")
+
     for key, value in replacements.items():
         template = template.replace(f"<<{key.upper()}>>", value)
 

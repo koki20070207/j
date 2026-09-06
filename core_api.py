@@ -15,12 +15,13 @@ Jarvis Core が公開するローカルAPI。UI（Streamlit）はここを叩い
 import time
 
 import chromadb
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from config import CHAT_COLLECTION_NAME, CHROMA_DB_PATH
 from db import get_connection
 from logging_setup import get_logger
 from memory_store import reset_chat_memory
+from tools import reset_memos
 
 logger = get_logger(__name__)
 
@@ -52,6 +53,27 @@ def get_memos() -> dict:
             for r in rows
         ]
     }
+
+
+@app.delete("/memos/{memo_id}")
+def delete_normal_memo(memo_id: int) -> dict:
+    """SQLiteの通常メモを1件削除する。"""
+    if memo_id <= 0:
+        raise HTTPException(status_code=400, detail="memo_idは正の整数で指定してください。")
+
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM memos WHERE id = ?", (memo_id,))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="指定されたメモが見つかりません。")
+
+    return {"deleted_count": 1, "id": f"memo_{memo_id}"}
+
+
+@app.delete("/memos")
+def delete_all_normal_memos() -> dict:
+    """SQLiteの通常メモをすべて削除する。"""
+    deleted_count = reset_memos()
+    return {"deleted_count": deleted_count}
 
 
 @app.post("/memory/reset")

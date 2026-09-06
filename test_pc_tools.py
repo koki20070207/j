@@ -47,13 +47,21 @@ def test_open_url_rejects_non_http_scheme():
 def test_open_url_uses_browser(monkeypatch):
     monkeypatch.setattr(pc_tools.webbrowser, "open", lambda url, new: True)
 
-    assert open_url("https://example.com")["status"] == "opened"
+    assert open_url("https://github.com")["status"] == "opened"
 
 
-def test_show_notification_validates_and_returns_operation_result():
+def test_open_url_rejects_unlisted_site(monkeypatch):
+    monkeypatch.setattr(pc_tools.webbrowser, "open", lambda url, new: True)
+
+    with pytest.raises(PCOperationError):
+        open_url("https://example.com")
+
+
+def test_show_notification_validates_and_returns_operation_result(monkeypatch):
+    monkeypatch.setattr(pc_tools, "_send_windows_notification", lambda title, message: None)
     result = show_notification("Jarvis", "処理が完了しました")
 
-    assert result["status"] == "queued"
+    assert result["status"] == "shown"
 
 
 def test_get_system_info_has_runtime_fields():

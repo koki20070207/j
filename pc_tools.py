@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from config import CORE_API_TIMEOUT_SEC
+from config import ALLOWED_BROWSER_SITES, CORE_API_TIMEOUT_SEC
 from logging_setup import get_logger
 
 logger = get_logger(__name__)
@@ -95,23 +95,42 @@ def launch_app(app_name: str) -> Dict[str, str]:
 
 
 def open_url(url: str) -> Dict[str, str]:
-    """HTTP(S) URLを既定ブラウザで開く。"""
-    parsed = urllib.parse.urlparse(url.strip())
+    """許可リスト内のHTTP(S) URLを既定ブラウザで開く。"""
+    clean_url = url.strip()
+    parsed = urllib.parse.urlparse(clean_url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise PCOperationError("httpまたはhttpsのURLだけ開けます。")
-    if not webbrowser.open(url.strip(), new=2):
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    request_path = parsed.path or "/"
+    allowed_paths = ALLOWED_BROWSER_SITES.get(hostname)
+    if allowed_paths is None or not any(request_path.startswith(prefix) for prefix in allowed_paths):
+        raise PCOperationError("許可リストにないサイトまたはパスです。")
+    if not webbrowser.open(clean_url, new=2):
         raise PCOperationError("既定ブラウザでURLを開けませんでした。")
-    return {"url": url.strip(), "status": "opened"}
+    return {"url": clean_url, "status": "opened"}
+
+
+def _send_windows_notification(title: str, message: str) -> None:
+    """winotifyが利用可能なWindows環境でトースト通知を表示する。"""
+    try:
+        from winotify import Notification
+    except ImportError as error:
+        raise PCOperationError(
+            "Windows通知にはwinotifyが必要です。requirements.txtの依存関係をインストールしてください。"
+        ) from error
+    toast = Notification(app_id="Jarvis Core", title=title, msg=message)
+    toast.show()
 
 
 def show_notification(title: str, message: str) -> Dict[str, str]:
-    """OS通知を要求する（現段階では安全な結果記録のみ）。"""
+    """WindowsのOS通知を表示する。"""
     clean_title = title.strip()
     clean_message = message.strip()
     if not clean_title or not clean_message or len(clean_title) > 100 or len(clean_message) > 500:
         raise PCOperationError("通知のタイトルと本文を適切に指定してください。")
-    logger.info("PC通知を要求しました: %s", clean_title)
-    return {"title": clean_title, "message": clean_message, "status": "queued"}
+    _send_windows_notification(clean_title, clean_message)
+    logger.info("Windows通知を表示しました: %s", clean_title)
+    return {"title": clean_title, "message": clean_message, "status": "shown"}
 
 
 def get_system_info() -> Dict[str, str]:

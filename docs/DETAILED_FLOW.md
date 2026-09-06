@@ -90,6 +90,8 @@ pending -> awaiting_confirmation -> running
 - パスの許可範囲チェック
 - 検索階層と最大件数の制限
 - Core APIからの呼び出し
+- HTTP(S) URLのブラウザ許可リスト
+- Windows OS通知（`winotify`）
 
 ### 2. 実行結果管理の土台（完了の初期版）
 
@@ -109,7 +111,8 @@ pending -> awaiting_confirmation -> running
 - 基本的なシステム情報の取得
 
 現時点では、任意コマンド実行、ファイル削除、外部送信、購入、
-メール送信は許可していない。
+メール送信は許可していない。ブラウザは候補サイトの許可リストに
+登録されたドメインだけを開き、OS通知はWindowsのトースト通知として表示する。
 
 ### 4. 操作ID・実行履歴
 
@@ -207,6 +210,8 @@ heartbeatごとに期限到来タスクを一度だけ取り出す。操作名�
 | 確認 | `confirmations` | pending、approved、rejected、executing、executed、failed、cancelledを管理 |
 | スケジュール | `scheduled_tasks`、`scheduler.py` | 期限到来を原子的に取り出し、許可済み操作だけを実行 |
 | 実行境界 | `operation_dispatcher.py` | 操作名と引数を許可リストで検証し、任意コマンドを拒否 |
+| ブラウザ境界 | `ALLOWED_BROWSER_SITES` | 許可ドメイン・パス以外のURLを拒否 |
+| OS通知 | `winotify` | `queued` 記録だけでなくWindowsトーストを表示 |
 | 再試行・停止 | 確認実行APIの上限・キャンセルAPI | 再試行は最大3回、未実行要求はキャンセル可能 |
 | DB移行 | `db.init_db()` | 既存DBにスケジュール引数列を起動時追加 |
 
@@ -278,7 +283,6 @@ heartbeatごとに期限到来タスクを一度だけ取り出す。操作名�
 
 - Core常駐のタスクスケジューラ登録、再起動、停止復旧は実機検証が必要。
 - Windowsアプリ起動、ブラウザ起動、HTTP経由APIは実機での確認を継続する。
-- `show_notification()` は現在ログと `queued` 結果までで、WindowsのOS通知表示は未接続。
 - スケジュールタスクの停止・再開・削除API、最大実行時間、最大ステップ数は未完成。
 - 確認内容と実行引数は確認レコードから実行しているが、承認者の識別や
   request hashの監査保存は未追加。
@@ -297,6 +301,7 @@ heartbeatごとに期限到来タスクを一度だけ取り出す。操作名�
 - 確認フロー追加後の対象テスト: 5 passed。
 - 再試行・キャンセル追加後の対象テスト: 9 passed。
 - 最新の全体テスト: **192 passed、1 skipped、2 warnings**。
+- ブラウザ許可リストとOS通知追加後の最新テスト: **193 passed、1 skipped、2 warnings**。
 - skipped 1件は `test_types.py::TestLlmClientTypes::test_get_gemini_client_returns_client`。
   Gemini APIキーを必要とする外部接続テストのため、通常の全体テストではスキップする。
 - warnings 2件はChromaDBとGoogle GenAI SDK内部の将来非推奨APIであり、
@@ -310,6 +315,14 @@ heartbeatごとに期限到来タスクを一度だけ取り出す。操作名�
 4. バックアップ必須のファイル変更を読み取り専用操作とは別の権限階層で実装する。
 5. 許可サイト設定と、閲覧・入力・送信の操作権限を分離する。
 6. APIキーを表示せず、Gemini実接続テストを1回だけ手動実行する。
+
+### 前段（1〜3）の完了判定
+
+1〜3について、実装上の未完了項目は解消済みとする。
+ブラウザは許可リスト外を拒否し、通知は `queued` の記録だけでなく
+Windows OS通知の表示まで行う。実機での確認は、Windowsログオン時のCore起動、
+ブラウザ表示、通知表示を環境ごとに追加確認する。
+これ以降は4（操作ID・実行履歴）の拡張として、監査情報とスケジュール制御を進める。
 
 ### 設計上の不変条件
 

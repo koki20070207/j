@@ -34,6 +34,15 @@ class TestLlmClientTypes:
         with pytest.raises(FileNotFoundError):
             result = llm_client.load_prompt("nonexistent.txt")
         # Type is validated by mypy
+
+    def test_load_prompt_rejects_empty_file(self, tmp_path, monkeypatch) -> None:
+        """重要なプロンプトが空の場合は早期に失敗させる。"""
+        prompt_path = tmp_path / "empty.txt"
+        prompt_path.write_text(" \n", encoding="utf-8")
+        monkeypatch.setattr(llm_client, "PROMPTS_DIR", str(tmp_path))
+
+        with pytest.raises(ValueError, match="空です"):
+            llm_client.load_prompt("empty.txt")
         
     def test_normalize_cache_key_returns_string(self) -> None:
         """Verify _normalize_cache_key returns a string."""

@@ -57,6 +57,7 @@ from memory_store import (
     search_memory_context,
 )
 from tools import get_current_datetime
+from tools import delete_memo, reset_memos
 from rag_engine import (
     generate_highlighted_images,
     get_registered_documents,
@@ -350,6 +351,60 @@ def render_memory_manager(chat_collection, model) -> None:
             st.rerun()
 
 
+def render_memo_manager() -> None:
+    """SQLiteに保存された通常メモを表示・個別削除・全削除するUI。"""
+    from db import get_connection
+
+    st.caption("通常メモ（AI長期記憶とは別の保存データ）")
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, text, created_at, done FROM memos ORDER BY id DESC"
+        ).fetchall()
+
+    if not rows:
+        st.info("保存されている通常メモはありません。")
+        return
+
+    options = {
+        f"memo_{row['id']} | {'完了' if row['done'] else '未完了'} | {row['text']}": row["id"]
+        for row in rows
+    }
+    selection_version = st.session_state.get("normal_memo_selection_version", 0)
+    selection_key = f"selected_normal_memos_{selection_version}"
+    selected_labels = st.multiselect(
+        "削除する通常メモを選択",
+        options=list(options),
+        key=selection_key,
+    )
+    if selected_labels and st.button(
+        f"選択した {len(selected_labels)} 件を削除",
+        type="secondary",
+        use_container_width=True,
+    ):
+        for label in selected_labels:
+            delete_memo(options[label])
+        st.session_state["normal_memo_selection_version"] = selection_version + 1
+        st.success(f"{len(selected_labels)}件の通常メモを削除しました。")
+        st.rerun()
+
+    clear_version = st.session_state.get("reset_normal_memos_version", 0)
+    clear_key = f"reset_normal_memos_confirmed_{clear_version}"
+    confirmed = st.checkbox(
+        "通常メモをすべて削除することを確認しました",
+        key=clear_key,
+    )
+    if st.button(
+        "通常メモをすべて削除",
+        disabled=not confirmed,
+        type="secondary",
+        use_container_width=True,
+    ):
+        deleted_count = reset_memos()
+        st.session_state["reset_normal_memos_version"] = clear_version + 1
+        st.success(f"通常メモを{deleted_count}件削除しました。")
+        st.rerun()
+
+
 # ------------------------------------------------------------------
 # UI: メインエリア
 # ------------------------------------------------------------------
@@ -620,6 +675,8 @@ def main() -> None:
         use_web_search, threshold, preview_pos, search_scope_hashes = render_settings(model, child_collection, parent_collection)
         st.divider()
         st.subheader("📝 記憶の管理")
+        render_memo_manager()
+        st.divider()
         render_memory_manager(chat_collection, model)
 
     chat_container = render_pdf_preview(preview_pos)

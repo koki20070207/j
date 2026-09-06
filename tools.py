@@ -280,6 +280,33 @@ def mark_memo_done(memo_id: int) -> str:
     return f"メモID {memo_id} を完了状態にしました。"
 
 
+def delete_memo(memo_id: int) -> str:
+    """指定されたメモを削除する。"""
+    if not isinstance(memo_id, int) or memo_id <= 0:
+        return f"無効なメモIDです: {memo_id}。"
+
+    try:
+        with get_connection() as conn:
+            cursor = conn.execute("DELETE FROM memos WHERE id = ?", (memo_id,))
+            if cursor.rowcount == 0:
+                return f"メモID {memo_id} は見つかりません。"
+    except Exception as e:
+        logger.warning("メモの削除に失敗しました: %s", e)
+        return "メモの削除に失敗しました（データベースエラー）。"
+
+    logger.info("メモを削除しました（memo_%d）", memo_id)
+    return f"メモID {memo_id} を削除しました。"
+
+
+def reset_memos() -> int:
+    """通常メモを全削除し、削除件数を返す。"""
+    with get_connection() as conn:
+        cursor = conn.execute("DELETE FROM memos")
+        deleted_count = cursor.rowcount
+    logger.info("通常メモを全削除しました: %d件", deleted_count)
+    return deleted_count
+
+
 # ------------------------------------------------------------------
 # 利用可能なツール一覧
 # 新しいツール関数を追加したら、必ずここにも追加すること（追加を忘れると
@@ -291,4 +318,5 @@ AVAILABLE_TOOLS: List = [
     list_memos,
     search_memos,
     mark_memo_done,
+    delete_memo,
 ]

@@ -18,3 +18,12 @@ def test_find_missing_prompt_files_accepts_all_non_empty_files(tmp_path: Path):
         (tmp_path / filename).write_text("valid prompt", encoding="utf-8")
 
     assert find_missing_prompt_files(tmp_path) == []
+
+
+def test_find_missing_prompt_files_reports_invalid_encoding(tmp_path: Path):
+    (tmp_path / "answer_system.txt").write_bytes(b"\xff\xfe")
+    (tmp_path / "multimodal_extract.txt").write_text("valid prompt", encoding="utf-8")
+
+    missing = find_missing_prompt_files(tmp_path)
+
+    assert missing == [str(tmp_path / "answer_system.txt")]

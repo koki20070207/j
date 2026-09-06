@@ -110,8 +110,25 @@ def _acquire_single_instance_lock() -> None:
             sys.exit(1)
         else:
             logger.warning("古いPIDファイルを検出しました（PID %s は実行されていません）。上書きします。", old_pid)
+            try:
+                os.remove(CORE_PID_FILE)
+            except OSError as error:
+                logger.error("古いPIDファイルを削除できませんでした: %s", error)
+                sys.exit(1)
 
-    with open(CORE_PID_FILE, "w", encoding="utf-8") as f:
+    # stale PIDを除去した直後に別プロセスが作成する競合を防ぐため、
+    # 作成と存在確認を1つのOS操作として実行する。
+    try:
+        file_descriptor = os.open(
+            CORE_PID_FILE,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            0o600,
+        )
+    except FileExistsError:
+        logger.error("PIDファイルが同時に作成されました。二重起動を中止します。")
+        sys.exit(1)
+
+    with os.fdopen(file_descriptor, "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
 
 

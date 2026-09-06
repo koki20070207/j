@@ -29,7 +29,11 @@ def find_missing_prompt_files(prompt_dir: Optional[Path] = None) -> List[str]:
     missing = []
     for filename in REQUIRED_PROMPT_FILES:
         path = directory / filename
-        if not path.is_file() or not path.read_text(encoding="utf-8").strip():
+        try:
+            is_invalid = not path.is_file() or not path.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeError):
+            is_invalid = True
+        if is_invalid:
             missing.append(str(path))
     return missing
 

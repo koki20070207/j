@@ -8,6 +8,7 @@ from pc_tools import (
     launch_app,
     list_directory,
     open_url,
+    read_url,
     search_files,
     show_notification,
     move_file,
@@ -19,7 +20,7 @@ class OperationDispatchError(ValueError):
 
 
 SUPPORTED_OPERATIONS = frozenset(
-    {"system_info", "list_files", "search_files", "launch_app", "open_url", "notification", "move_file", "workflow"}
+    {"system_info", "list_files", "search_files", "launch_app", "open_url", "read_url", "notification", "move_file", "workflow"}
 )
 
 
@@ -44,6 +45,9 @@ def dispatch_operation(operation: str, request: Dict[str, Any] | None = None) ->
         if operation == "open_url":
             _require_keys(payload, {"url"})
             return open_url(payload["url"])
+        if operation == "read_url":
+            _require_keys(payload, {"url"})
+            return read_url(payload["url"])
         if operation == "notification":
             _require_keys(payload, {"title", "message"})
             return show_notification(payload["title"], payload["message"])

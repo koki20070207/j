@@ -7,6 +7,7 @@ import platform
 import shutil
 import subprocess
 import urllib.parse
+import urllib.request
 import webbrowser
 import shutil as _shutil
 from datetime import datetime
@@ -109,6 +110,27 @@ def open_url(url: str) -> Dict[str, str]:
     if not webbrowser.open(clean_url, new=2):
         raise PCOperationError("既定ブラウザでURLを開けませんでした。")
     return {"url": clean_url, "status": "opened"}
+
+
+def read_url(url: str) -> Dict[str, str]:
+    """許可リスト内のページを読み取り専用で取得する。"""
+    clean_url = url.strip()
+    parsed = urllib.parse.urlparse(clean_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise PCOperationError("httpまたはhttpsのURLだけ読み取れます。")
+    hostname = (parsed.hostname or "").lower().rstrip(".")
+    request_path = parsed.path or "/"
+    allowed_paths = ALLOWED_BROWSER_SITES.get(hostname)
+    if allowed_paths is None or not any(request_path.startswith(prefix) for prefix in allowed_paths):
+        raise PCOperationError("許可リストにないサイトまたはパスです。")
+    request = urllib.request.Request(clean_url, headers={"User-Agent": "JarvisCore/1.0"})
+    try:
+        with urllib.request.urlopen(request, timeout=CORE_API_TIMEOUT_SEC) as response:
+            body = response.read(100_000)
+            charset = response.headers.get_content_charset() or "utf-8"
+    except (OSError, ValueError) as error:
+        raise PCOperationError("許可サイトの読み取りに失敗しました。") from error
+    return {"url": clean_url, "content": body.decode(charset, errors="replace"), "status": "read"}
 
 
 def _send_windows_notification(title: str, message: str) -> None:

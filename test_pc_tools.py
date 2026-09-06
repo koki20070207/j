@@ -3,7 +3,7 @@
 import pytest
 
 import pc_tools
-from pc_tools import PCOperationError, get_system_info, list_directory, move_file, open_url, search_files, show_notification
+from pc_tools import PCOperationError, get_system_info, list_directory, move_file, open_url, read_url, search_files, show_notification
 
 
 def test_list_directory_is_read_only_and_structured(tmp_path, monkeypatch):
@@ -55,6 +55,23 @@ def test_open_url_rejects_unlisted_site(monkeypatch):
 
     with pytest.raises(PCOperationError):
         open_url("https://example.com")
+
+
+def test_read_url_uses_allowlist(monkeypatch):
+    class Response:
+        headers = type("Headers", (), {"get_content_charset": lambda self: "utf-8"})()
+
+        def read(self, limit):
+            return b"ok"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    monkeypatch.setattr(pc_tools.urllib.request, "urlopen", lambda request, timeout: Response())
+    assert read_url("https://docs.python.org/")["status"] == "read"
 
 
 def test_show_notification_validates_and_returns_operation_result(monkeypatch):

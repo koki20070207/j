@@ -80,8 +80,12 @@ def _build_command() -> str:
     launcher_path = os.path.join(THIS_DIR, "_jarvis_core_launcher.bat")
     with open(launcher_path, "w", encoding="shift_jis") as f:
         f.write("@echo off\r\n")
+        f.write(f'cd /d "{THIS_DIR}"\r\n')
         f.write(f'"{pythonw}" "{CORE_SCRIPT_PATH}"\r\n')
-    return launcher_path
+    # Task Scheduler does not consistently execute a .bat file when it is
+    # supplied directly as the task action. Invoke it through cmd.exe and
+    # call so quoting and the batch-file exit behavior are deterministic.
+    return f'cmd.exe /d /c call "{launcher_path}"'
 
 
 def register() -> bool:

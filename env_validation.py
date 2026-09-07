@@ -7,7 +7,8 @@
 
 import os
 import sys
-from typing import List
+from pathlib import Path
+from typing import List, Optional
 
 from dotenv import load_dotenv
 from logging_setup import get_logger
@@ -19,6 +20,22 @@ REQUIRED_ENV_VARS = ["GEMINI_API_KEY"]
 
 # 推奨環境変数のリスト（なくても動くが、あるとより良い）
 RECOMMENDED_ENV_VARS: List[str] = []
+REQUIRED_PROMPT_FILES = ("answer_system.txt", "multimodal_extract.txt")
+
+
+def find_missing_prompt_files(prompt_dir: Optional[Path] = None) -> List[str]:
+    """必須プロンプトの欠落・空ファイルを返す。"""
+    directory = prompt_dir or Path(__file__).resolve().parent / "prompts"
+    missing = []
+    for filename in REQUIRED_PROMPT_FILES:
+        path = directory / filename
+        try:
+            is_invalid = not path.is_file() or not path.read_text(encoding="utf-8").strip()
+        except (OSError, UnicodeError):
+            is_invalid = True
+        if is_invalid:
+            missing.append(str(path))
+    return missing
 
 
 def validate_environment() -> None:
@@ -38,6 +55,16 @@ def validate_environment() -> None:
         error_msg = (
             f"必須環境変数が不足しています: {', '.join(missing_vars)}\n"
             f"これらを .env ファイルに設定するか、環境変数として定義してください。"
+        )
+        logger.error(error_msg)
+        print(error_msg, file=sys.stderr)
+        sys.exit(1)
+
+    missing_prompts = find_missing_prompt_files()
+    if missing_prompts:
+        error_msg = (
+            "必須プロンプトが見つからないか空です:\n"
+            + "\n".join(f"- {path}" for path in missing_prompts)
         )
         logger.error(error_msg)
         print(error_msg, file=sys.stderr)

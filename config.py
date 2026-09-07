@@ -123,6 +123,28 @@ CORE_API_HOST = "127.0.0.1"   # ローカル専用。外部からの接続は受
 CORE_API_PORT = 8765
 CORE_API_TIMEOUT_SEC = 1.0    # UI側がCoreの生死確認をする際のタイムアウト（体感速度を優先し短めに）
 
+# ブラウザ操作はサイト単位の許可リストで制限する。値は許可するパスの接頭辞。
+ALLOWED_BROWSER_SITES = {
+    "github.com": ("/",),
+    "gitlab.com": ("/",),
+    "stackoverflow.com": ("/",),
+    "google.com": ("/",),
+    "calendar.google.com": ("/",),
+    "docs.google.com": ("/",),
+    "drive.google.com": ("/",),
+    "microsoft.com": ("/",),
+    "outlook.office.com": ("/",),
+    "onedrive.live.com": ("/",),
+    "notion.so": ("/",),
+    "slack.com": ("/",),
+    "teams.microsoft.com": ("/",),
+    "wikipedia.org": ("/",),
+    "developer.mozilla.org": ("/",),
+    "docs.python.org": ("/",),
+    "pypi.org": ("/",),
+    "localhost": ("/",),
+}
+
 # ------------------------------------------------------------------
 # ツール呼び出し（関数呼び出し）
 # ------------------------------------------------------------------

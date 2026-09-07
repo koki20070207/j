@@ -21,8 +21,8 @@ Windowsログイン時に自動起動し、UI（ブラウザ）を閉じても�
 ・起動・二重起動防止・グレースフルシャットダウン・ハートビートログ（Step 1）。
 ・SQLiteデータ層の初期化（Step 2）。
 ・UIから状態確認・データ取得ができるローカルAPI（Step 3、core_api.py）。
-・スケジューラ／自律タスク実行ループ（Step 4）、ツール実行の安全階層判定
-  ＋Discord通知（Step 5）は未実装。run_forever() のループ内に今後追加していく。
+・許可リスト済みの低リスク操作に限定したスケジューラ実行（Step 4）。
+  任意コマンド実行や高リスク操作は引き続き拒否する。
 """
 
 import os
@@ -35,6 +35,9 @@ from config import CORE_API_HOST, CORE_API_PORT, CORE_HEARTBEAT_INTERVAL_SEC, CO
 from db import init_db
 from env_validation import validate_environment
 from logging_setup import get_logger
+from operation_dispatcher import OperationDispatchError, dispatch_operation
+from operation_store import create_operation, finish_operation
+from scheduler import list_due_tasks
 
 # 起動方法（タスクスケジューラ／手動ダブルクリック等）によらず、常に
 # このファイルがあるディレクトリを基準に相対パス（memos.json等）を解決する。
@@ -110,8 +113,25 @@ def _acquire_single_instance_lock() -> None:
             sys.exit(1)
         else:
             logger.warning("古いPIDファイルを検出しました（PID %s は実行されていません）。上書きします。", old_pid)
+            try:
+                os.remove(CORE_PID_FILE)
+            except OSError as error:
+                logger.error("古いPIDファイルを削除できませんでした: %s", error)
+                sys.exit(1)
 
-    with open(CORE_PID_FILE, "w", encoding="utf-8") as f:
+    # stale PIDを除去した直後に別プロセスが作成する競合を防ぐため、
+    # 作成と存在確認を1つのOS操作として実行する。
+    try:
+        file_descriptor = os.open(
+            CORE_PID_FILE,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            0o600,
+        )
+    except FileExistsError:
+        logger.error("PIDファイルが同時に作成されました。二重起動を中止します。")
+        sys.exit(1)
+
+    with os.fdopen(file_descriptor, "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
 
 
@@ -183,8 +203,28 @@ def run_forever() -> None:
         tick = 0
         while not _shutdown_requested:
             tick += 1
-            # TODO(Step 4): ここでスケジューラのtick処理・自律タスクの進行チェックを行う
-            logger.info("生存確認（heartbeat #%d）。まだスケジューラは接続されていません。", tick)
+            due_tasks = list_due_tasks()
+            logger.info("生存確認（heartbeat #%d）。期限到来タスク: %d件", tick, len(due_tasks))
+            for task in due_tasks:
+                operation_id = create_operation(task["operation"], task["request"], "running")
+                try:
+                    result = dispatch_operation(task["operation"], task["request"])
+                except OperationDispatchError as error:
+                    finish_operation(operation_id, "failed", error=str(error))
+                    logger.warning(
+                        "自律タスクを拒否しました（task_id=%s, operation=%s）: %s",
+                        task["task_id"],
+                        task["operation"],
+                        error,
+                    )
+                else:
+                    finish_operation(operation_id, "succeeded", result)
+                    logger.info(
+                        "自律タスクを実行しました（task_id=%s, operation=%s, operation_id=%s）。",
+                        task["task_id"],
+                        task["operation"],
+                        operation_id,
+                    )
 
             # sleepを短い間隔に分けて回すことで、シャットダウン要求から
             # 実際に停止するまでの遅延を短く保つ（最大1秒）

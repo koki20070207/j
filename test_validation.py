@@ -25,6 +25,8 @@ from tools import (
     list_memos,
     search_memos,
     mark_memo_done,
+    delete_memo,
+    reset_memos,
 )
 
 
@@ -306,6 +308,35 @@ class TestMarkMemoDone:
         """メモ完了マーク：整数ではないID"""
         result = mark_memo_done(0)  # type: ignore
         assert "無効な" in result or "正の整数" in result
+
+
+class TestMemoDeletion:
+    """通常メモの削除機能"""
+
+    def setup_method(self):
+        init_db()
+
+    def test_delete_memo_removes_only_requested_entry(self):
+        add_memo("残すメモ")
+        add_memo("削除するメモ")
+        deleted_id = latest_memo_id()
+
+        result = delete_memo(deleted_id)
+
+        assert "削除しました" in result
+        assert "残すメモ" in list_memos()
+        assert "削除するメモ" not in list_memos()
+
+    def test_delete_memo_rejects_missing_entry(self):
+        result = delete_memo(999999)
+        assert "見つかりません" in result
+
+    def test_reset_memos_removes_all_entries(self):
+        add_memo("メモ1")
+        add_memo("メモ2")
+
+        assert reset_memos() == 2
+        assert "ありません" in list_memos()
 
 
 # ===== 統合テスト =====

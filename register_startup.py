@@ -22,8 +22,11 @@ import argparse
 import os
 import subprocess
 import sys
+import time
+import urllib.error
+import urllib.request
 
-from config import CORE_TASK_NAME
+from config import CORE_API_HOST, CORE_API_PORT, CORE_LOG_FILE, CORE_TASK_NAME
 from logging_setup import get_logger
 
 logger = get_logger(__name__)
@@ -81,7 +84,10 @@ def _build_command() -> str:
     with open(launcher_path, "w", encoding="shift_jis") as f:
         f.write("@echo off\r\n")
         f.write(f'cd /d "{THIS_DIR}"\r\n')
-        f.write(f'"{pythonw}" "{CORE_SCRIPT_PATH}"\r\n')
+        f.write(
+            f'"{pythonw}" "{CORE_SCRIPT_PATH}" '
+            f'>> "{CORE_LOG_FILE}.launcher.log" 2>&1\r\n'
+        )
     # Task Scheduler does not consistently execute a .bat file when it is
     # supplied directly as the task action. Invoke it through cmd.exe and
     # call so quoting and the batch-file exit behavior are deterministic.
@@ -157,11 +163,41 @@ def run_now() -> None:
     subprocess.run([sys.executable, CORE_SCRIPT_PATH])
 
 
+def run_scheduled_task() -> bool:
+    """タスクスケジューラ経由で起動し、Core APIの応答まで確認する。"""
+    result = subprocess.run(
+        ["schtasks", "/run", "/tn", CORE_TASK_NAME],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"❌ タスクの起動要求に失敗しました: {result.stderr.strip()}")
+        return False
+
+    health_url = f"http://{CORE_API_HOST}:{CORE_API_PORT}/health"
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(health_url, timeout=1) as response:
+                if response.status == 200:
+                    print("✅ タスクスケジューラ経由でJarvis Coreが起動しました。")
+                    print(response.read().decode("utf-8"))
+                    return True
+        except (urllib.error.URLError, TimeoutError):
+            time.sleep(1)
+
+    print("❌ タスクは受理されましたが、15秒以内にCore APIへ接続できませんでした。")
+    print(f"   Coreログ: {CORE_LOG_FILE}")
+    print(f"   ランチャーログ: {CORE_LOG_FILE}.launcher.log")
+    return False
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Jarvis Coreの自動起動をWindowsタスクスケジューラに登録する")
     parser.add_argument("--status", action="store_true", help="登録状況を確認する")
     parser.add_argument("--remove", action="store_true", help="登録を解除する")
     parser.add_argument("--run-now", action="store_true", help="今すぐフォアグラウンドで試験起動する")
+    parser.add_argument("--run-task", action="store_true", help="タスク経由で起動し、Core APIまで確認する")
     args = parser.parse_args()
 
     if args.status:
@@ -170,5 +206,7 @@ if __name__ == "__main__":
         sys.exit(0 if remove() else 1)
     elif args.run_now:
         run_now()
+    elif args.run_task:
+        sys.exit(0 if run_scheduled_task() else 1)
     else:
         sys.exit(0 if register() else 1)

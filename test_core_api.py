@@ -5,7 +5,13 @@ from fastapi import HTTPException
 
 import config
 import db
-from core_api import delete_all_normal_memos, delete_normal_memo, get_memos
+from core_api import (
+    delete_all_normal_memos,
+    delete_normal_memo,
+    get_memos,
+    move_pc_file,
+    read_pc_url,
+)
 from tools import add_memo
 
 
@@ -44,3 +50,34 @@ def test_delete_all_normal_memos_returns_deleted_count(isolated_db):
 
     assert response == {"deleted_count": 2}
     assert get_memos() == {"memos": []}
+
+
+def test_read_pc_url_exposes_read_only_operation(monkeypatch):
+    monkeypatch.setattr(
+        "core_api.read_url",
+        lambda url: {"url": url, "content": "ok", "status": "read"},
+    )
+
+    response = read_pc_url("https://docs.python.org/")
+
+    assert response["operation"] == "read_url"
+    assert response["result"]["status"] == "read"
+
+
+def test_move_pc_file_records_successful_operation(isolated_db, tmp_path, monkeypatch):
+    source = str(tmp_path / "source.txt")
+    destination = str(tmp_path / "destination.txt")
+    monkeypatch.setattr(
+        "core_api.move_file",
+        lambda actual_source, actual_destination: {
+            "source": actual_source,
+            "destination": actual_destination,
+            "status": "moved",
+        },
+    )
+
+    response = move_pc_file(source, destination)
+
+    assert response["operation"] == "move_file"
+    assert response["result"]["status"] == "moved"
+    assert response["operation_id"]

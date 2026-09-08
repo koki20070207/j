@@ -37,7 +37,9 @@ from pc_tools import (
     get_system_info,
     launch_app,
     list_directory,
+    move_file,
     open_url,
+    read_url,
     search_files,
     show_notification,
 )
@@ -98,6 +100,32 @@ def open_pc_url(url: str) -> dict:
         return {"operation": "open_url", "result": open_url(url)}
     except PCOperationError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/pc/read")
+def read_pc_url(url: str) -> dict:
+    """許可リスト内のページを読み取り専用で取得する。"""
+    try:
+        return {"operation": "read_url", "result": read_url(url)}
+    except PCOperationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.post("/pc/move")
+def move_pc_file(source: str, destination: str) -> dict:
+    """バックアップ作成後にユーザープロファイル内のファイルを移動する。"""
+    operation_id = create_operation(
+        "move_file",
+        {"source": source, "destination": destination},
+        "running",
+    )
+    try:
+        result = move_file(source, destination)
+    except PCOperationError as error:
+        finish_operation(operation_id, "failed", error=str(error))
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    finish_operation(operation_id, "succeeded", result)
+    return {"operation_id": operation_id, "operation": "move_file", "result": result}
 
 
 @app.post("/pc/notification")

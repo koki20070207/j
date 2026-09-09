@@ -28,3 +28,17 @@ def test_acquire_single_instance_rejects_running_pid(tmp_path, monkeypatch):
         jarvis_core._acquire_single_instance_lock()
 
     assert pid_file.read_text(encoding="utf-8") == "1234"
+
+
+def test_api_server_wrapper_logs_thread_exception(monkeypatch):
+    errors = []
+
+    def fail_to_start():
+        raise RuntimeError("api startup failed")
+
+    monkeypatch.setattr(jarvis_core, "_start_api_server", fail_to_start)
+    monkeypatch.setattr(jarvis_core.logger, "exception", lambda message: errors.append(message))
+
+    jarvis_core._run_api_server_with_logging()
+
+    assert errors == ["Core APIスレッドが異常終了しました。"]

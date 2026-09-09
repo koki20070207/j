@@ -183,6 +183,14 @@ def _start_api_server() -> None:
     uvicorn.run(api_app, host=CORE_API_HOST, port=CORE_API_PORT, log_level="warning")
 
 
+def _run_api_server_with_logging() -> None:
+    """APIスレッド内の例外をCoreログへ記録する。"""
+    try:
+        _start_api_server()
+    except Exception:
+        logger.exception("Core APIスレッドが異常終了しました。")
+
+
 # ------------------------------------------------------------------
 # メインループ
 # ------------------------------------------------------------------
@@ -196,13 +204,15 @@ def run_forever() -> None:
     _register_signal_handlers()
     init_db()  # answer_cache / memos / chat_sessions用のSQLiteテーブルを用意（UI側と共有）
 
-    api_thread = threading.Thread(target=_start_api_server, daemon=True)
+    api_thread = threading.Thread(target=_run_api_server_with_logging, name="core-api", daemon=True)
     api_thread.start()
 
     try:
         tick = 0
         while not _shutdown_requested:
             tick += 1
+            if not api_thread.is_alive():
+                logger.error("Core APIスレッドが停止しています。heartbeatは継続しますがHTTP APIは利用できません。")
             due_tasks = list_due_tasks()
             logger.info("生存確認（heartbeat #%d）。期限到来タスク: %d件", tick, len(due_tasks))
             for task in due_tasks:

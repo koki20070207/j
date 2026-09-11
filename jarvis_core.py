@@ -30,6 +30,8 @@ import signal
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 
 from config import CORE_API_HOST, CORE_API_PORT, CORE_HEARTBEAT_INTERVAL_SEC, CORE_LOG_FILE, CORE_PID_FILE
 from db import init_db
@@ -47,7 +49,7 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 logger = get_logger(__name__, log_file=CORE_LOG_FILE)
 
-_shutdown_requested = False
+_shutdown_event = threading.Event()
 
 
 # ------------------------------------------------------------------
@@ -147,9 +149,8 @@ def _release_single_instance_lock() -> None:
 # シャットダウン処理
 # ------------------------------------------------------------------
 def _handle_shutdown_signal(signum, frame) -> None:
-    global _shutdown_requested
     logger.info("シャットダウン要求を受信しました（signal=%s）。次のループで安全に終了します。", signum)
-    _shutdown_requested = True
+    _shutdown_event.set()
 
 
 def _register_signal_handlers() -> None:
@@ -163,7 +164,7 @@ def _register_signal_handlers() -> None:
 # ------------------------------------------------------------------
 # ローカルAPI（UIとの連携。Step 3）
 # ------------------------------------------------------------------
-def _start_api_server() -> None:
+def _start_api_server(api_error: list[BaseException]) -> None:
     """uvicornを別スレッドで起動する。
 
     【スレッドで動かしている理由・既知の制限】
@@ -176,17 +177,42 @@ def _start_api_server() -> None:
     「実行中の自律タスクの状態をAPI経由でやり取りする」ような重い処理が
     増えてきたら、asyncio主体の構成に組み直すことを検討する。
     """
-    import uvicorn
-    from core_api import app as api_app
+    try:
+        import uvicorn
+        from core_api import app as api_app
 
-    logger.info("Core APIを起動します: http://%s:%d", CORE_API_HOST, CORE_API_PORT)
-    uvicorn.run(api_app, host=CORE_API_HOST, port=CORE_API_PORT, log_level="warning")
+        logger.info("Core APIを起動します: http://%s:%d", CORE_API_HOST, CORE_API_PORT)
+        uvicorn.run(api_app, host=CORE_API_HOST, port=CORE_API_PORT, log_level="warning")
+    except BaseException as error:
+        api_error.append(error)
+        logger.exception("Core APIの起動に失敗しました。")
+
+
+def _wait_for_api_server(api_thread: threading.Thread, api_error: list[BaseException]) -> None:
+    """APIのhealthエンドポイントが応答するまで待ち、起動失敗を呼び出し元へ返す。"""
+    health_url = f"http://{CORE_API_HOST}:{CORE_API_PORT}/health"
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if api_error:
+            raise RuntimeError("Core APIの起動に失敗しました。") from api_error[0]
+        if not api_thread.is_alive():
+            raise RuntimeError("Core APIスレッドが起動直後に終了しました。")
+        try:
+            with urllib.request.urlopen(health_url, timeout=1) as response:
+                if response.status == 200:
+                    logger.info("Core APIの起動を確認しました。")
+                    return
+        except (urllib.error.URLError, TimeoutError, OSError):
+            time.sleep(0.2)
+
+    raise TimeoutError("Core APIが10秒以内に起動しませんでした。")
 
 
 # ------------------------------------------------------------------
 # メインループ
 # ------------------------------------------------------------------
 def run_forever() -> None:
+    _shutdown_event.clear()
     logger.info("=" * 60)
     logger.info("Jarvis Core を起動します（PID: %d）", os.getpid())
     logger.info("=" * 60)
@@ -196,12 +222,14 @@ def run_forever() -> None:
     _register_signal_handlers()
     init_db()  # answer_cache / memos / chat_sessions用のSQLiteテーブルを用意（UI側と共有）
 
-    api_thread = threading.Thread(target=_start_api_server, daemon=True)
-    api_thread.start()
-
     try:
+        api_error: list[BaseException] = []
+        api_thread = threading.Thread(target=_start_api_server, args=(api_error,), daemon=True)
+        api_thread.start()
+        _wait_for_api_server(api_thread, api_error)
+
         tick = 0
-        while not _shutdown_requested:
+        while not _shutdown_event.is_set():
             tick += 1
             due_tasks = list_due_tasks()
             logger.info("生存確認（heartbeat #%d）。期限到来タスク: %d件", tick, len(due_tasks))
@@ -226,12 +254,8 @@ def run_forever() -> None:
                         operation_id,
                     )
 
-            # sleepを短い間隔に分けて回すことで、シャットダウン要求から
-            # 実際に停止するまでの遅延を短く保つ（最大1秒）
-            for _ in range(CORE_HEARTBEAT_INTERVAL_SEC):
-                if _shutdown_requested:
-                    break
-                time.sleep(1)
+            # イベント待機により、通常は指定間隔で起床し、シャットダウン要求時は即時に抜ける。
+            _shutdown_event.wait(timeout=CORE_HEARTBEAT_INTERVAL_SEC)
     finally:
         logger.info("Jarvis Core を終了します。")
         _release_single_instance_lock()

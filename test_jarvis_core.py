@@ -5,6 +5,40 @@ import pytest
 import jarvis_core
 
 
+def test_wait_for_api_server_returns_after_health_check(monkeypatch):
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    monkeypatch.setattr(jarvis_core.urllib.request, "urlopen", lambda *args, **kwargs: Response())
+    thread = jarvis_core.threading.Thread()
+
+    jarvis_core._wait_for_api_server(thread, [])
+
+
+def test_wait_for_api_server_raises_original_error():
+    original_error = OSError("port is already in use")
+
+    with pytest.raises(RuntimeError) as error:
+        jarvis_core._wait_for_api_server(jarvis_core.threading.Thread(), [original_error])
+
+    assert error.value.__cause__ is original_error
+
+
+def test_shutdown_signal_sets_event():
+    jarvis_core._shutdown_event.clear()
+
+    jarvis_core._handle_shutdown_signal(2, None)
+
+    assert jarvis_core._shutdown_event.is_set()
+    jarvis_core._shutdown_event.clear()
+
+
 def test_acquire_single_instance_replaces_stale_pid_file(tmp_path, monkeypatch):
     pid_file = tmp_path / "jarvis_core.pid"
     pid_file.write_text("999999", encoding="utf-8")

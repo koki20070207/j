@@ -191,7 +191,10 @@ def _start_api_server(api_error: list[BaseException]) -> None:
 def _wait_for_api_server(api_thread: threading.Thread, api_error: list[BaseException]) -> None:
     """APIのhealthエンドポイントが応答するまで待ち、起動失敗を呼び出し元へ返す。"""
     health_url = f"http://{CORE_API_HOST}:{CORE_API_PORT}/health"
-    deadline = time.monotonic() + 10
+    # Importing the API module can initialize ChromaDB and other dependencies.
+    # A fixed 10-second deadline caused Task Scheduler starts to terminate the
+    # otherwise healthy Core before uvicorn had finished binding its socket.
+    deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         if api_error:
             raise RuntimeError("Core APIの起動に失敗しました。") from api_error[0]
@@ -205,7 +208,7 @@ def _wait_for_api_server(api_thread: threading.Thread, api_error: list[BaseExcep
         except (urllib.error.URLError, TimeoutError, OSError):
             time.sleep(0.2)
 
-    raise TimeoutError("Core APIが10秒以内に起動しませんでした。")
+    raise TimeoutError("Core APIが60秒以内に起動しませんでした。")
 
 
 # ------------------------------------------------------------------

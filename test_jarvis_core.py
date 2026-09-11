@@ -17,6 +17,7 @@ def test_wait_for_api_server_returns_after_health_check(monkeypatch):
 
     monkeypatch.setattr(jarvis_core.urllib.request, "urlopen", lambda *args, **kwargs: Response())
     thread = jarvis_core.threading.Thread()
+    monkeypatch.setattr(thread, "is_alive", lambda: True)
 
     jarvis_core._wait_for_api_server(thread, [])
 
